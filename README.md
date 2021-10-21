@@ -5,7 +5,7 @@
 - [x] Search for products by category
   - [x] hard code category
   - [x] dynamic read categories form database
-- [ ] Search for products by text box 
+- [x] Search for products by text box 
 - [ ] Master/Detail view of products
 - [ ] Pagination support for products
 - [ ] Add products to shopping cart(CRUD)
@@ -238,11 +238,11 @@ currently, Spring Boot returns products regardless of category
   5. Update product service to call URL on Spring Boot app
   6. In HTML, relace hard-coded links with menu component
 
-#### 1. Midify Spring Boot app - Expose entity ids
+### 1. Midify Spring Boot app - Expose entity ids
 - By default, Spring Data REST does not expose entity id, but we need IDs for a few user cases
   - in productCategory level no entity id but its is embedded in HATEOS links(no easy access, require parsing URL string) http://localhost:8080/api/product-category
 - ==>we need Entity id at the productCategory level (with categoryName) for easy access
-- Update Spring Data REST config to expose entity ids [MyDataRestConfig.java]()
+- Update Spring Data REST config to expose entity ids [MyDataRestConfig.java](02-back_end/spring-boot-ecommerce/src/main/java/com/hahagroup/ecommerce/config/MyDataRestConfig.java)
   - expose entity ids
     - 1. gets a list of all entity classes from entity manager
     - 2. create an array of the entity types
@@ -283,20 +283,20 @@ currently, Spring Boot returns products regardless of category
     }
     ```
 
-#### 2. Create a class: ProductCategory in Angular front-end
+### 2. Create a class: ProductCategory in Angular front-end
   `ng generate class common/product-category`
-  [product-category.ts]()
+  [product-category.ts](03-frontend/anguler-ecommerce/src/app/common/product-category.ts)
   ```javascript
   export class ProductCategory {
       id:number;
       categoryName:string;
   }
 ```
-#### 3. Create new component for menu
+### 3. Create new component for menu
 `ng generate component components/product-category-menu`
 
-#### 4. Enhance menu component to read data from product service
-  [product-category-menu.component.ts]()
+### 4. Enhance menu component to read data from product service
+  [product-category-menu.component.ts](03-frontend/anguler-ecommerce/src/app/components/product-category-menu/product-category-menu.component.ts)
   ```javascript
     productCategories: ProductCategory[];
     constructor(private productService: ProductService) { }
@@ -314,8 +314,8 @@ currently, Spring Boot returns products regardless of category
     }
 ```
 
-#### 5. Upadate product service  to call URL on Spring Boot app
-  [product.service.ts]()
+### 5. Upadate product service  to call URL on Spring Boot app
+  [product.service.ts](03-frontend/anguler-ecommerce/src/app/services/product.service.ts)
   ```javascript
   export class ProductService {
       //define category url
@@ -336,10 +336,10 @@ currently, Spring Boot returns products regardless of category
     }
   }
   ```
-#### 6. In HTML, relace hard-coded links with menu component
-  [app.component.html]()
+### 6. In HTML, relace hard-coded links with menu component
+  [app.component.html](03-frontend/anguler-ecommerce/src/app/app.component.html)
   `<app-product-category-menu></app-product-category-menu>`
-  [product-category-menu.component.html]()
+  [product-category-menu.component.html](03-frontend/anguler-ecommerce/src/app/components/product-category-menu/product-category-menu.component.html)
   ``` html
   <!-- MENU SIDEBAR -->
   <div class="menu-sidebar-content js-scrollbar1">
@@ -356,7 +356,7 @@ currently, Spring Boot returns products regardless of category
     </nav>
   </div>
   ```
-  ##### How to display Category Name in Product List Grid Component?
+  ### How to display Category Name in Product List Grid Component?
   1. Update route and add parameter
      [app.modlue.ts]()
      `{path: 'category/:id/:name', component: ProductListComponent},`
@@ -384,3 +384,168 @@ currently, Spring Boot returns products regardless of category
   4. Update the list-grid HTML file to bind to category name
      [product-list-grid.component.html]()
       `<h4>Category: {{ currentCategoryName }}</h4>   <hr />`
+
+
+## Search for products by text box 
+### Development Process
+   1. Modify Spring Boot App -- Add a new search method
+   2. Create new component for search
+   3. Add new Angular route for searching
+   4. Update SearchComponent to send data to search route
+   5. Enhance ProductListComponent to search for products with ProductService
+   6. Update ProductService to call URL on Spring Boot app
+
+### 1. Modify Spring Boot App -- Add a new search method
+ - Spring Data REST and JPA supports "query"
+ - Spring will construct a query based on method naming conventions
+  [ProductRepository.java](02-back_end/spring-boot-ecommerce/src/main/java/com/hahagroup/ecommerce/dao/ProductRepository.java)
+   http://localhost:8080/api/products/search/findByNameContaining?name=Python
+`Page<Product> findByNameContaining(@RequestParam("name")String name, Pageable pageable);`
+"Containing"... similar to SQL "LIKE"
+Behind the scenes, Spring will execute a query similar to this:
+```SQL
+SELECT * FROM Product p
+WHERE
+p.name LIKE CONCAT('%', :name, '%')
+```
+### 2. Create new component for search
+- `ng generate component components/search `
+
+### 3. Add new Angular route for searching
+[app.module.ts](03-frontend/anguler-ecommerce/src/app/app.module.ts)
+add path into route
+```javascript
+const routes: Routes=[
+  {path: 'category/:id/:name', component:ProductListComponent},
+  {path: 'search/:keyword', component:ProductListComponent},
+```
+### 4. Update SearchComponent to send data to search route
+#### Steps:
+  1. User enters search text
+  2. Clicks Search button
+  3. SearchComponent hs a click handler method
+  4. Read Search text
+  5. Route the data to the 'search' route
+  6. Handled by the ProductListComponent
+[search.component.html](03-frontend/anguler-ecommerce/src/app/components/search/search.component.html)
+```HTML
+<div class="form-header">
+  <input
+    #myInput
+    type="text"
+    placeholder="Search for products ..."
+    class="au-input au-input -xl"
+    (keyup.enter)="doSearch(myInput.value)"
+  />
+  <button (click)="doSearch(myInput.value" class="au-btn-submit">Search</button>
+</div>
+```
+add the search component into [app.component.html](03-frontend/anguler-ecommerce/src/app/app.component.html)
+  <app-search></app-search>
+
+[search.component.ts](03-frontend/anguler-ecommerce/src/app/components/search/search.component.ts)
+```javascript
+export class SearchComponent implements OnInit {
+  constructor(private router: Router) { }
+  doSearch(value:string){
+    console.log(`value=${value}`);
+    this.router.navigateByUrl(`/search/${value}`);
+  }
+```
+### 5. Enhance ProductListComponent to search for products with ProductService
+[product-list.component.ts](03-frontend/anguler-ecommerce/src/app/components/product-list/product-list.component.ts)
+*add some logic to check if has keyword*
+
+  ```javascript
+  searchMode: boolean;
+  listProducts(){
+    this.searchMode=this.route.snapshot.paramMap.has('keyword');
+    if(this.searchMode){
+      this.handleSearchProducts();
+    }else{
+      this.handleListProducts();
+    }
+  }
+  handleSearchProducts() {
+    const theKeyword: string = this.route.snapshot.paramMap.get('keyword');
+    //now search for the products using keyword
+    this.productService.searchProducts(theKeyword).subscribe(
+      data=>{this.products=data;}
+    )
+  }
+    handleListProducts(){
+    const hasCatogryId: boolean=this.route.snapshot.paramMap.has('id');
+    if(hasCatogryId){
+      this.currentCategoryId=+this.route.snapshot.paramMap.get('id');
+      this.currentCategoryName = this.route.snapshot.paramMap.get('name');
+    }else{
+      this.currentCategoryId=1;
+      this.currentCategoryName="Books";
+    }
+    this.productService.getProductList(this.currentCategoryId).subscribe(
+      data =>{
+        this.products = data;
+      }
+    )
+  }
+  ```
+
+### 6. Update ProductService to call URL on Spring Boot app
+  [product.service.ts](03-frontend/anguler-ecommerce/src/app/services/product.service.ts)
+  refactor to add a method to both searchProducts and getProductList
+  ```javascript
+  {...
+    searchProducts(theKeyword: string):Observable<Product[]>{
+      //build URL based on keyword and REST API in Spring Boot
+      const searchUrl = `${this.baseUrl}/search/findByNameContaining?name=${theKeyword}`;
+      return this.getProducts(searchUrl);
+    }
+    private getProducts(searchUrl: string): Observable<Product[]> {
+      return this.httpClient.get<GetResponseProducts>(searchUrl).pipe(
+        map(responde => responde._embedded.products)
+      );
+    }
+  }
+  interface GetResponseProducts{
+    _embedded:{
+      products: Product[];
+    }
+  }
+  ```
+
+### Event Binding
+ - when user clicks the 'Search' button, read the text field
+ - In Angular, listen for events with 'Event Binding' (like event handling in other language)
+  - Click Search Button
+    - `<button (click)="doMyCustomWork()">Search</button>`
+      - Listen for 'click' event
+      - "doMyCutsomWork()" is Event handler, call a method in Angular component SearchComponent
+      - in SearchComponent create the method doMyCustomWork()
+  - Reading User Input
+    - `<input #myInput type="text" (keyup.enter)="doMyCustomWork(myInput.value)" />`
+      - #symbol: template reference variable, provides access to the element
+      - Listen for "enter" key
+      - in SearchComponent create the method doMyCustomWork(info: string) pass the textValue typed in
+- Other Events
+  | Name | Description |
+  | --- | ----------- |
+  | focus | An element has received focus |
+  | blur | An element has lost focus |
+  | keyup | Any key is released. for a specific key, the enter key, use: keyup.enter |
+  | keydown | Any key is pressed |
+  | dblclick |The mounse is clicked twice on an element |
+
+### Enhancement: Display a message if products not found
+  *? mark is Safe navigation operator*: Guards against null and undefined value in property paths
+  ==>if (producys is null/undefined) or (products.length == 0) diplay:'No products found'
+  [product-list-grid.component.html](03-frontend/anguler-ecommerce/src/app/components/product-list/product-list-grid.component.html)
+  ```HTML
+          <!-- if products empty then display a message to user -->
+        <div
+          *ngIf="products?.length == 0"
+          class="alert alert-waring col-md-12"
+          role="alert"
+        >
+          No Products Found.
+        </div>
+  ```
