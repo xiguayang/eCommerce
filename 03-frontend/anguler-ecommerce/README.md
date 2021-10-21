@@ -1,15 +1,15 @@
 
 # Release 2.0
 
-- [x]Online Shop Template Integration
-- [x]Search for products by category
-  - [x]hard code category
-  - []dynamic read categories form database
-- Search for products by text box 
-- Master/Detail view of products
-- Pagination support for products
-- Add products to shopping cart(CRUD)
-- Shopping cart check out
+- [x] Online Shop Template Integration
+- [x] Search for products by category
+  - [x] hard code category
+  - [ ] dynamic read categories form database
+- [ ] Search for products by text box 
+- [ ] Master/Detail view of products
+- [ ] Pagination support for products
+- [ ] Add products to shopping cart(CRUD)
+- [ ] Shopping cart check out
 
 ## Online Shop Template Integration
 *Wireframes*: 
