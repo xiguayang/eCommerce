@@ -6,7 +6,7 @@
   - [x] hard code category
   - [x] dynamic read categories form database
 - [x] Search for products by text box 
-- [ ] Master/Detail view of products
+- [x] Master/Detail view of products
 - [ ] Pagination support for products
 - [ ] Add products to shopping cart(CRUD)
 - [ ] Shopping cart check out
@@ -365,7 +365,7 @@ currently, Spring Boot returns products regardless of category
     `<a routerLink="/category/{{ tempProductCategory.id }}/{{ tempProductCategory.categoryName }}" routerLinkActive="active-link">`
   3. Update component to read the category name
     [product-list.component.ts]()
-    ```
+    ```javascript
      currentCategoryName: string;
      listProducts() {
       ...
@@ -549,3 +549,91 @@ export class SearchComponent implements OnInit {
           No Products Found.
         </div>
   ```
+
+## Master/Detail view of products
+  ### Development Process
+  1. Create new component for product details
+  2. Add new Angular route for product details
+  3. Add router links to the product-list-grid HTML page
+  4. Enhance ProductDetailsComponent to retieve product from Product Service
+  5. Update ProductService to call URL on Spring Boot app
+  6. Update HTML page for ProductDetailsComponent to display product details
+  ### 1. Create new component for product details
+  `ng generate component components/ProductDetails`
+
+  ### 2. Add new Angular route for product details
+  [app.module.ts](03-frontend/anguler-ecommerce/src/app/app.module.ts)
+  `  {path: 'products/:id', component:ProductDetailsComponent},`
+
+  ### 3. Add router links to the product-list-grid HTML page
+  - User clicks the product from product lists to see details
+    - add a link both on product image and product name
+  - [product-list-grid.component.html](03-frontend/anguler-ecommerce/src/app/components/product-list/product-list-grid.component.html)
+    - `<a routerLink="/products/{{ tempProduct.id }}"></a>`
+  
+  ### 4. Enhance ProductDetailsComponent to retieve product from Product Service
+  [product-details.component.ts](03-frontend/anguler-ecommerce/src/app/components/product-details/product-details.component.ts)
+  ```javascript
+  export class ProductDetailsComponent implements OnInit {
+    product: Product;
+    constructor(private productService: ProductService, private route:ActivatedRoute ) { }
+    ngOnInit() {
+      this.route.paramMap.subscribe(()=>{
+        this.handleProductDetail();
+      })
+    }
+    handleProductDetail(){
+      //get the 'id' param string. convert string to number using +
+      const theProductId: number =+this.route.snapshot.paramMap.get('id')
+      this.productService.getProduct(theProductId).subscribe(
+        data=>{
+          this.product=data;
+        }
+      )
+    }
+  }
+  ```
+  ### 5. Update ProductService to call URL on Spring Boot app
+  [product.service.ts](03-frontend/anguler-ecommerce/src/app/services/product.service.ts)
+  Returns an observable: JSON data return can be converted directly to Product object
+  No need to unwrap the JSON from Spring Data REST
+  - URL for retrieving product id: 2===>localhost:8080/api/products/2(Built-in feature of Spring Data REST)
+  - `const productUrl=`${this.baseUrl}/${theProductId}`;`
+  ### 6. Update HTML page for ProductDetailsComponent to display product details
+  - adding img css in [styles.css](03-frontend/anguler-ecommerce/src/styles.css)
+  ```CSS
+  .detail-img {
+    width: 30%;
+  }
+  ```
+  - [product-details.component.html](03-frontend/anguler-ecommerce/src/app/components/product-details/product-details.component.html)
+  ```HTML
+  <div class="detail-section">
+  <div class="container-fluid">
+    <img src="{{ product.imageUrl }}" class="detail-img" />
+    <h3>{{ product.name }}</h3>
+    <div class="price">{{ product.unitPrice | currency: "USD" }}"</div>
+    <a href="#" class="primary-btn">Add to cart</a>
+    <hr />
+    <h4>Product Description</h4>
+    <p>
+      {{ product.description }}
+    </p>
+    <a href="/products" class="mt-5">Back to Product List</a>
+  </div>
+</div>
+  ```
+
+###  Async Problem for rendering img
+[product-details.component.ts](03-frontend/anguler-ecommerce/src/app/components/product-details/product-details.component.ts)
+Property is undefined when declared it: product: Product; 
+It is not assigned a value until data arrives from the ProductService method call(async call)
+Behind the scenes: when teh property is assigned(data finally arrives), the Angular automaticlly updates HTML template page
+==>solution 1: assign a value to the product, create a new instance
+`product: Product=new Product();`
+solution 2: using 'safe-navigation operatoer'
+`<img scr="{{product?.imageUrl}}">`
+
+## Pagination support for products
+## Add products to shopping cart(CRUD)
+## Shopping cart check out
