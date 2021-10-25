@@ -7,7 +7,7 @@
   - [x] dynamic read categories form database
 - [x] Search for products by text box 
 - [x] Master/Detail view of products
-- [ ] Pagination support for products
+- [x] Pagination support for products
 - [ ] Add products to shopping cart(CRUD)
 - [ ] Shopping cart check out
 
@@ -635,5 +635,235 @@ solution 2: using 'safe-navigation operatoer'
 `<img scr="{{product?.imageUrl}}">`
 
 ## Pagination support for products
+
+### Pagination
+  - useful for handling large amounts of data
+  - Show users a small subset of data
+  - click links to view other pages
+### Spring Data REST provides pagination support. By default, returns 20 elements
+  - customize by passing in parameters
+      - page: the page number to access. 0-based, defaults to 0
+      - size: the size of page to return items per page. defaults 20
+      - example: *http://.......products?page=3&size=10*
+  - Spring Data REST - Response Meta Data
+    - the response meta data has valuable info
+    ```
+    "page":{
+      "size": 10, //(size of the page)
+      "totalElements": 200, //(Grand total of All elements in dt, just the count)
+      "totalPages": 20, //(total page avalable)
+      "number": 0 //current page number
+    }
+    ```
+### Pagination with Angular
+  - many pagination solutions for Angular
+  - make use of a popular component framework: [ng-bootstrap](https://ng-bootstrap.github.io)
+    - Components in ng-bootstrap: datapicker, nav, .... Basic pagination
+      - Pagination Component
+        - page: 1-based defaults to 1
+        - pageSize: defaults to 10
+        - collectionSize: total number of items
+        - pageChange: Event handler for page change events
+        - basic example: COMPONENT WILL GENERATE LINKS FOR PAGINATION
+          ```HTML
+          <ngb-pagination [(page)]="thePageNumber"
+                          [pageSize] = "thePageSize"
+                          [collectionSize]="theTotalElements"
+                          [pageChange]="listProducts()">
+          </ngb-pagination>
+          ```
+### Developnmemt Process
+1. Intsall ng-bootstrap
+      - cml
+       `ng add @angular/localize` //dependency for Angular 9+
+       `npm install @ng-bootstrap/ng-bootstrap`
+      - import the module for ng-boostrap [app.module.ts](03-frontend/anguler-ecommerce/src/app/app.module.ts)
+      ```javascript
+      @NgModule({
+        ...
+        imports: [
+          RouterModule.forRoot(routes),
+          BrowserModule,
+          HttpClientModule,
+          NgbModule
+        ],
+      ```
+2. Refactor the interface for: GetResponseProducts
+       1. currently using the interface GetResponseProducts
+       2. Maps JSON data form REST API to our TypeScript objects[product.service.ts](03-frontend/anguler-ecommerce/src/app/services/product.service.ts)
+        ```javascript
+        interface GetResponseProducts{
+          _embedded:{
+            products: Product[];
+          },
+          page:{
+            size: number,
+            totalElement: number,
+            totalPages: number,
+            number: number
+          }
+        }
+        ```
+3. Add pagination support to ProductSevice
+       [product.service.ts](03-frontend/anguler-ecommerce/src/app/services/product.service.ts)
+       ```javascript
+        getProductListPaginate(thePage: number, 
+                              thePageSize:number, 
+                              theCategoryId:number): Observable<GetResponseProducts>{
+          // build URL based on category id, page and size
+          const url= `${this.baseUrl}/search/findByCategoryId`
+                    + `?id=${theCategoryId}&page=${thePage}&size=${thePageSize}`;
+          return this.httpClient.get<GetResponseProducts>(url);
+        } 
+       ``` 
+4. Update ProductListComponent to handle pagination[product-list.component.ts](03-frontend/anguler-ecommerce/src/app/components/product-list/product-list.component.ts)
+       1. adding properties for pagination
+       2. call service and pass in parameters
+       3. Pagination component: page as 1 based but Spring Data REST: pages are 0 based
+       4. when data arrives from product service...then set properties based on the data
+       5. MUST CHECK CURRENT Category ID
+        ```javascript
+        export class ProductListComponent implements OnInit {
+          ...
+          //adding previousCategoryId for tracking
+          previousCategoryId: number;
+          //new properties for pagination
+          thePageNumber: number=1;
+          thePageSize: number =10;
+          theTotalElements: number =0;
+          listProducts(){
+            this.searchMode=this.route.snapshot.paramMap.has('keyword');
+            if(this.searchMode){
+              this.handleSearchProducts();
+            }else{
+              this.handleListProducts();
+            }
+          }
+
+          handleListProducts(){
+            ...
+            //check if we have a different category than previous
+            //Note: Angular will reuse a component if it is currently being viewd
+            //
+            //if we have a different category id than previous
+            //we have to set thePageNumber back to 1
+            if(this.currentCategoryId!=this.previousCategoryId){
+              this.thePageNumber=1;
+            }
+            this.previousCategoryId=this.currentCategoryId;
+
+            this.productService.getProductListPaginate(this.thePageNumber -1, this.thePageSize, this.currentCategoryId).subscribe(
+              this.processResult()
+            );
+          }
+          private processResult() {
+            return data =>{
+              this.products = data._embedded.products;
+              this.thePageNumber=data.page.number +1;
+              this.thePageSize=data.page.size;
+              this.theTotalElements=data.page.totalElements;
+            }
+          }
+        }
+        ```
+5. Enhance HTML template to use ng-bootstrap pagination component   [product-list-grid.component.html](03-frontend/anguler-ecommerce/src/app/components/product-list/product-list-grid.component.html)
+       1. special Angular syntax for Two-way Data Binding 
+          1. example: 
+             1. [(page)]: parameter of ngb-pagination component
+             2. "thePageNumber": property of ProductListComponent
+                1. when user clicks "page" navigation link
+                2. in TypeScript component "thePageNumber" property is updated based on user action
+                3. if our TypeScript code updates "thePageNumber" then UI component is updated automatically.(highlight current page number)
+    ```HTML
+      <!-- begin footer -->
+      <div class="footer-pagination">
+        <div class="row">
+          <div class="col-md-6"></div>
+          <div class="col-md-6">
+            <div class="row">
+              <div class="col-md-9" style="padding-left: 30%">
+                <ngb-pagination
+                  [(page)]="thePageNumber"
+                  [pageSize]="thePageSize"
+                  [collectionSize]="theTotalElements"
+                  (pageChange)="listProducts()"
+                >
+                </ngb-pagination>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    ```
+### Adding Page Size Selection Development Process
+1. Add drop-down list for page size to HTML template
+   [product-list-grid.component.html](03-frontend/anguler-ecommerce/src/app/components/product-list/product-list-grid.component.html)
+   ```HTML
+              <div class="col-md-3 mt-2" style="text-align: right">
+                <span class="mr-2">Page Size</span>
+                <select #mySelect (change)="updatePageSize(+mySelect.value)">
+                  <option selected="true">5</option>
+                  <option>10</option>
+                  <option>20</option>
+                  <option>50</option>
+                </select>
+              </div>
+   ```
+   Event binding: on change
+   when user slects a page, then call method: updatePageSize(...) which definded in component.ts file
+2. Update ProductListComponent for setting page size
+   [product-list.component.ts](03-frontend/anguler-ecommerce/src/app/components/product-list/product-list.component.css)
+   ```JavaScript
+   updatePageSize(pageSize: number){
+     this.thePageSize=pageSize;
+     this.thePageNumber=1;
+     this.listProducts();
+   }
+   ```
+### Setting Max Size and Boundary Links
+  - Show only a max number of pages(lots of items and too many pages)
+    EXAMPLE: only shows a max of 5 pages, includes "..." and last/first page
+  ```HTML
+  <ngb-pagination
+      [maxSize]="5"
+  ```
+  - show boundray links: << and >>, jump to begining or end page
+  `   [boundaryLinks]="true" `
+### Add pagination support for keyword search
+1. Add pagination support to ProductService
+   [product.service.ts](03-frontend/anguler-ecommerce/src/app/services/product.service.ts)
+  ```Javascript
+  searchProductsPaginate(theKeyword: string,
+                        thePageSize: number,
+                        thePage: number):Observable<GetResponseProducts>{
+    //build URL based on keyword and REST API in Spring Boot
+    const searchUrl = `${this.baseUrl}/search/findByNameContaining`
+                      +`?name=${theKeyword}&page=${thePage}&size=${thePageSize}`;
+    return this.httpClient.get<GetResponseProducts>(searchUrl);
+  }
+  ```
+2. Update ProductListComponent to handle pagination
+   [product-list.component.ts](03-frontend/anguler-ecommerce/src/app/components/product-list/product-list.component.ts)
+   update handleSearchProducts()
+  ```javascript
+  previousKeyword:string=null;
+  handleSearchProducts() {
+    const theKeyword: string = this.route.snapshot.paramMap.get('keyword');
+    //if we have a different keyword than previous
+    //then set thePageNumber to 1
+    if(this.previousKeyword !=theKeyword){
+      this.thePageNumber=1;
+    }
+    this.previousKeyword=theKeyword;
+    console.log(`currentKeyword=${theKeyword}, thePageNumber=${this.thePageNumber}`);
+    //now search for the products using keyword
+    this.productService.searchProductsPaginate(this.thePageNumber-1,
+                                                this.thePageSize,
+                                                theKeyword).subscribe(this.processResult())
+  }
+  ```
+  
+
+
 ## Add products to shopping cart(CRUD)
 ## Shopping cart check out

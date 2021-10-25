@@ -13,15 +13,28 @@ export class ProductService {
  
   //inject HttpClient
   constructor(private httpClient: HttpClient) { }
-  
+
   getProduct(theProductId: number) : Observable<Product>{
     const productUrl=`${this.baseUrl}/${theProductId}`;
     return this.httpClient.get<Product>(productUrl);
   }
-  getProductList(theCategoryId: number): Observable<Product[]>{
-    //need to build URL based on cateogy id
-    const searchUrl=`${this.baseUrl}/search/findByCategoryId?id=${theCategoryId}`;
-    return this.getProducts(searchUrl);
+
+  getProductListPaginate(thePage: number, 
+                        thePageSize:number, 
+                        theCategoryId:number): Observable<GetResponseProducts>{
+    // build URL based on category id, page and size
+    const url= `${this.baseUrl}/search/findByCategoryId`
+    + `?id=${theCategoryId}&page=${thePage}&size=${thePageSize}`;
+    return this.httpClient.get<GetResponseProducts>(url);
+  }
+
+  searchProductsPaginate(thePage: number,
+                        thePageSize: number,
+                        theKeyword: string):Observable<GetResponseProducts>{
+    //build URL based on keyword and REST API in Spring Boot
+    const searchUrl = `${this.baseUrl}/search/findByNameContaining`
+                      +`?name=${theKeyword}&page=${thePage}&size=${thePageSize}`;
+    return this.httpClient.get<GetResponseProducts>(searchUrl);
   }
 
   searchProducts(theKeyword: string):Observable<Product[]>{
@@ -29,7 +42,11 @@ export class ProductService {
     const searchUrl = `${this.baseUrl}/search/findByNameContaining?name=${theKeyword}`;
     return this.getProducts(searchUrl);
   }
-
+  getProductList(theCategoryId: number): Observable<Product[]>{
+    //need to build URL based on cateogy id
+    const searchUrl=`${this.baseUrl}/search/findByCategoryId?id=${theCategoryId}`;
+    return this.getProducts(searchUrl);
+  }
   private getProducts(searchUrl: string): Observable<Product[]> {
     return this.httpClient.get<GetResponseProducts>(searchUrl).pipe(
       map(responde => responde._embedded.products)
@@ -43,10 +60,18 @@ export class ProductService {
   }
 
 
+
+
 }
 interface GetResponseProducts{
   _embedded:{
     products: Product[];
+  },
+  page:{
+    size: number,
+    totalElement: number,
+    totalPages: number,
+    number: number
   }
 }
 interface GetResponseProductCategory{
