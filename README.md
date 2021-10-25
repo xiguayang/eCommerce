@@ -866,4 +866,215 @@ solution 2: using 'safe-navigation operatoer'
 
 
 ## Add products to shopping cart(CRUD)
+### Overview
+  1. Cart Status Component: On main page, display total price and quantity
+  2. Cart Details Page: list the items in the cart
+  3. Cart Details Page: add/remove items
+  4. Checkout Button
+  5. Checkout Form
+
+### Part 1 Development Process
+  1. Create a new component: CartStatusComponent
+   `ng generate component components/cart-status`
+  2. Add HTML template for CartStatusComponent
+    [cart-status.component.html](03-frontend/anguler-ecommerce/src/app/components/cart-status/cart-status.component.html)
+    ```HTML
+    <div class="cart-area d-n">
+      <a href="shopping-detail.html">
+        <div class="total">
+          19.22
+          <span> 2</span>
+        </div>
+        <i class="fa fa-shopping-cart" aria-hidden="true"></i>
+      </a>
+    </div>
+    ```
+    [app.component.html](03-frontend/anguler-ecommerce/src/app/app.component.html)
+    `<app-cart-status></app-cart-status>`
+  3. Add click handler for "Add to cart" button
+    [product-list-grid.component.html](03-frontend/anguler-ecommerce/src/app/components/product-list/product-list-grid.component.html)
+    ```HTML
+            <button (click)="addToCart(tempProduct)"   class="btn btn-primary btn-sm">
+              Add to cart
+            </button>
+    ```
+  4. Update ProductListComponent with click handler method
+    [product-list.component.ts](03-frontend/anguler-ecommerce/src/app/components/product-list/product-list.component.ts)
+    ```Javascript
+    addToCart(theProduct:Product){
+        console.log(`Adding to cart: ${theProduct.name}, ${theProduct.unitPrice}`);
+      //TODO the real work
+    }
+    ```
+### Part 1.2 Development Process
+  - Application Interatcion: 
+    - ProductListComponent("AddToCart"button)    
+    - CartStatusComponent(smallcartIconwithtotalpricequantity) (*Observer*)
+    - CartService (*Observable*)
+      1. CartStatusComponent ---- subscribe for events --> CartService
+      2. ProductListComponent---- addToCart(...)----> CartService
+      3. CartService ---publish events to all subscribers--->CartStatusComponent
+      4. CartStatusComponent: update UI for total price and quantity
+  - Steps   
+    1. Create Model class: CartItem
+       `ng generate class common/cartItem`
+       [cart-item.ts](03-frontend/anguler-ecommerce/src/app/common/cart-item.ts)
+       contains essential fields of Product for use in the cart
+       ```Javascript
+        export class CartItem {
+            id:string;
+            name:string;
+            imageUrl:string;
+            unitPrice:number;
+            quantity:number;
+            constructor(product:Product){
+                this.id = product.id;
+                this.name=product.name;
+                this.imageUrl=product.imageUrl;
+                this.unitPrice=product.unitPrice;
+                this.quantity=1;
+            }
+        }
+       ```
+    2. Develop CartService
+      `ng generate service services/cart`
+      [cart-service.ts](03-frontend/anguler-ecommerce/src/app/services/cart.service.ts)
+      - our shopping cart is an array of CartItem Objects
+      - Subject is a subclass of Observable: we use it to publish events to our code, and the event will be sent to all of the subscribers
+      - .next(...) pulish/send event
+      ```Javascript
+      export class CartService {
+        //our shopping cart is an array of CartItem Objects
+        cartItems: CartItem[]=[];
+        totalPrice: Subject<number> = new Subject<number>();
+        totalQuantity:  Subject<number> = new Subject<number>();
+        constructor() { }
+        addToCart(theCartItem: CartItem){
+          //check if we already have the item in our cart
+          let alreadyExistsInCart: boolean=false;
+          let existingCartItem: CartItem=undefined;
+
+          if(this.cartItems.length>0){
+            //find the item in the cart based on item id
+            for(let tempCartItem of this.cartItems){
+              if(tempCartItem.id === theCartItem.id){
+                existingCartItem=tempCartItem;
+                break;
+              }
+            }
+            //check if we found it in cart
+            alreadyExistsInCart=(existingCartItem!=undefined);
+          }
+          //if the item is already in the cart
+          if(alreadyExistsInCart){
+              //increment the quantity
+            existingCartItem.quantity++;
+          }else{
+              //just add the item into the array
+            this.cartItems.push(theCartItem);
+          }
+            //compute cart quantity and the total price
+          this.computeCartTotals();
+        }
+        computeCartTotals() {
+          let totalPriceValue: number =0;
+          let totalQuantityValue: number =0;
+          for(let currentCartItem of this.cartItems){
+            totalPriceValue+=currentCartItem.unitPrice*currentCartItem.quantity;
+            totalQuantityValue+=currentCartItem.quantity;
+          }
+          //publish the new values ... all subscribers will recieve the new data
+          //one event for totalPrice
+          //one event for totalQuantity
+          //.next(...) publish/send events
+          this.totalPrice.next(totalPriceValue);
+          this.totalQuantity.next(totalQuantityValue);
+        }
+      }
+      ```
+    3. Modify ProductListComponent to call CartService
+      [product-list.component.ts](03-frontend/anguler-ecommerce/src/app/components/product-list/product-list.component.ts)
+      ```javascript
+        constructor(private productService: ProductService,
+              private cartService: CartService,
+              private route:ActivatedRoute 
+              ) { }
+        addToCart(theProduct:Product){
+          console.log(`Adding to cart: ${theProduct.name}, ${theProduct.unitPrice}`);
+          const theCartItem = new CartItem(theProduct);
+          //TODO the real work
+          //call the CartService
+          this.cartService.addToCart(theCartItem)
+        }
+      ```
+    4. Enhance CartStatusComponent to subscibe to CartService
+      [cart-status.component.ts](03-frontend/anguler-ecommerce/src/app/components/cart-status/cart-status.component.ts)
+      ```javascript
+       {... 
+        totalPrice: number=0.00;
+        totalQuantity:number=0;
+        constructor(private cartService:CartService) { }
+
+        ngOnInit(): void {
+          this.updateCartStatus();
+        }
+        updateCartStatus(){
+          //subscribe for events
+          //subscribe to the cart status totalPrice
+          this.cartService.totalPrice.subscribe(
+            data=>this.totalPrice=data
+          );
+          //subscibe to teh cart status totalQuantity
+          this.cartService.totalQuantity.subscribe(
+            data=>this.totalQuantity=data
+          );
+        }
+      ```
+    5. Update CartStatusComponent HTML to display cart total price and quantity
+      ```HTML
+      <div class="total">
+        {{ totalPrice | currency: "USD" }}
+        <span> {{ totalQuantity }}</span>
+      </div>
+      ```
+  - Refactor Cart Service Overview
+    - using Array.find(...): returns the first element in an array t hat passes a aiven test
+      - executes the test for each element in the array until the test passes
+      - if passes, then returns the first element passed
+      - if fails to all elements in the array, then return undefined
+    [cart.service.ts](03-frontend/anguler-ecommerce/src/app/services/cart.service.ts)
+    ```javascript
+      existingCartItem = this.cartItems.find(tempCartItem => tempCartItem.id === theCartItem.id);
+    ```
+### Part 1.3 Development Process
+  Add Products to Cart in product Detail View
+   1. Add click handler for 'Add to cart' button on product-details page
+      [product-detials.component.html](03-frontend/anguler-ecommerce/src/app/components/product-details/product-details.component.html)
+       ```HTML
+       <button (click)="addToCart()" class="btn btn-primary btn-sm">
+         Add to cart
+       </button>
+       ```
+   2. Update ProductDetailsComponent witgh click handler method
+      ```javascript
+       addToCart(){
+         console.log(`Adding to cart: ${this.product.name}, ${this.product.unitPrice}`);
+         //TODO the real work
+         const theCartItem = new CartItem(this.product);
+         this.cartService.addToCart(theCartItem);
+       }
+      ```
+   3. Appliction Interaction
+         1. CartStatusComponent ---- subscribe for events --> CartService
+         2. *ProductDetailsComponent---- addToCart(...)----> CartService*
+         3. CartService ---publish events to all subscribers--->CartStatusComponent
+         4. CartStatusComponent: update UI for total price and quantity
+
+
+
+
+### Part 2 Development Process CartDetailsPage
+  The Cart Details Page list all added products in the cart
+
+
 ## Shopping cart check out

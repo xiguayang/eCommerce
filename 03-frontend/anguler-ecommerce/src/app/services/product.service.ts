@@ -37,21 +37,21 @@ export class ProductService {
     return this.httpClient.get<GetResponseProducts>(searchUrl);
   }
 
-  searchProducts(theKeyword: string):Observable<Product[]>{
-    //build URL based on keyword and REST API in Spring Boot
-    const searchUrl = `${this.baseUrl}/search/findByNameContaining?name=${theKeyword}`;
-    return this.getProducts(searchUrl);
-  }
-  getProductList(theCategoryId: number): Observable<Product[]>{
-    //need to build URL based on cateogy id
-    const searchUrl=`${this.baseUrl}/search/findByCategoryId?id=${theCategoryId}`;
-    return this.getProducts(searchUrl);
-  }
-  private getProducts(searchUrl: string): Observable<Product[]> {
-    return this.httpClient.get<GetResponseProducts>(searchUrl).pipe(
-      map(responde => responde._embedded.products)
-    );
-  }
+  // searchProducts(theKeyword: string):Observable<Product[]>{
+  //   //build URL based on keyword and REST API in Spring Boot
+  //   const searchUrl = `${this.baseUrl}/search/findByNameContaining?name=${theKeyword}`;
+  //   return this.getProducts(searchUrl);
+  // }
+  // getProductList(theCategoryId: number): Observable<Product[]>{
+  //   //need to build URL based on cateogy id
+  //   const searchUrl=`${this.baseUrl}/search/findByCategoryId?id=${theCategoryId}`;
+  //   return this.getProducts(searchUrl);
+  // }
+  // private getProducts(searchUrl: string): Observable<Product[]> {
+  //   return this.httpClient.get<GetResponseProducts>(searchUrl).pipe(
+  //     map(responde => responde._embedded.products)
+  //   );
+  // }
 
   getProductCategories(): Observable<ProductCategory[]>{
     return this.httpClient.get<GetResponseProductCategory>(this.categoryUrl).pipe(
