@@ -8,7 +8,7 @@
 - [x] Search for products by text box 
 - [x] Master/Detail view of products
 - [x] Pagination support for products
-- [ ] Add products to shopping cart(CRUD)
+- [x] Add products to shopping cart(CRUD)
 - [ ] Shopping cart check out
 
 ## Online Shop Template Integration
@@ -1074,7 +1074,178 @@ solution 2: using 'safe-navigation operatoer'
 
 
 ### Part 2 Development Process CartDetailsPage
-  The Cart Details Page list all added products in the cart
-
+  The Cart Details Page list all added products(image, detials(name,price), quantital and subtotal price) in the cart
+  1. create CartDetailsComponent which is a table to list all products
+     `ng generate component components/cart-details`
+  2. Add new route for CartDetailComponent
+    [app.module.ts](03-frontend/anguler-ecommerce/src/app/app.module.ts)
+    `{path:'cart-details', component:CartDetailsComponent}`
+  3. Update link for Shopping Cart icon
+    [cart-status.component.html](03-frontend/anguler-ecommerce/src/app/components/cart-status/cart-status.component.html)
+    when user clicks CartStatusComponent then use new route: /cart-details to view CartDetailsComponent
+    `<a routerLink="/cart-details">`
+  4. Modify CartDetailsComponent to retireve cart items
+    list cartItems from cartService
+    ```Javascript
+      export class CartDetailsComponent implements OnInit {
+        cartItems: CartItem[]=[];
+        totalPrice: number=0;
+        totalQuantity: number =0;
+        constructor(private cartService: CartService) { }
+        ngOnInit(): void {
+          this.listCartDetails();
+        }
+        listCartDetails(){
+          //get a handle to the cart items
+          this.cartItems=this.cartService.cartItems;
+          //subscribe to the cart totalPrice
+          this.cartService.totalPrice.subscribe(
+            data=>this.totalPrice=data
+          )
+          //subscribe to the cart totalQuantity
+          this.cartService.totalQuantity.subscribe(
+            data=>this.totalQuantity=data
+          )
+          //compute cart total price and total quantity
+          this.cartService.computeCartTotals();
+        }
+      }
+    ```
+  5. Add HTML template for CartDetailsComponent
+    ```HTML
+      <table class="table table-bordered">
+        <tr>
+          <th width="20%">Product Image</th>
+          <th width="50%">Product Detail</th>
+          <th width="30%"></th>
+        </tr>
+        <tr *ngFor="let tempCartItem of cartItems">
+          <td>
+            <img
+              src="{{ tempCartItem.imageUrl }}"
+              class="img-responsive"
+              width="150px"
+            />
+          </td>
+          <td>
+            <p>{{ tempCartItem.name }}</p>
+            <p>{{ tempCartItem.unitPrice | currency: "USD" }}</p>
+          </td>
+          <td>
+            <div class="items">
+              <label>Quantity: </label>{{ tempCartItem.quantity }}
+            </div>
+            <p class="mt-2">
+              Subtotal:
+              {{
+                tempCartItem.quantity * tempCartItem.unitPrice | currency: "USD"
+              }}
+            </p>
+          </td>
+        </tr>
+        <tr>
+          <td colspan="2"></td>
+          <td style="font-weight: bold">
+            <p>Total Quantity: {{ totalQuantity }}</p>
+            <p>Shipping: FREE</p>
+            <P>Total Price: {{ totalPrice | currency: "USD" }}</P>
+          </td>
+        </tr>
+      </table>
+    ```
+    Adding condition for cart is empty
+    ```HTML
+       <div *ngIf="cartItems.length > 0">
+         <table></table>
+          <!-- if cart is empty then display a message -->
+      <div
+        *ngIf="cartItems.length == 0"
+        class="alert alert-warning col-md-12"
+        role="alert"
+      >
+        Your shopping cart is empty
+      </div>
+    ```
+  #### Increment item quantity from Shoppipng cart page
+  Steps:
+  1. Modify CartDetailComponent HTML template
+     1. Add the 'increment' button
+     2. Add click handler for the 'increment' button on HTML template
+    ```HTML
+              <div class="items">
+                <label>Quantity: </label>
+                <div class="row no-gutters">
+                  <div class="col">
+                    <button
+                      (click)="decrementQuantity(tempCartItem)"
+                      class="btn btn-primary btn-sm"
+                    >
+                      <i class="fas fa-minus"></i>
+                    </button>
+                  </div>
+                  <div class="col ml-4 mr-2">{{ tempCartItem.quantity }}</div>
+                  <div class="col">
+                    <button
+                      (click)="incrementQuantity(tempCartItem)"
+                      class="btn btn-primary btn-sm"
+                    >
+                      <i class="fas fa-plus"></i>
+                    </button>
+                  </div>
+                  <div class="col-8"></div>
+                </div>
+              </div>
+    ```   
+  2. Update CartDetailsComponent with click handler method
+    [cart-details.component.ts](03-frontend/anguler-ecommerce/src/app/components/cart-details/cart-details.component.ts)
+    ```JAVASCRIPT
+    incrementQuantity(theCartItem: CartItem){
+      this.cartService.addToCart(theCartItem);
+    }
+    ```
+  #### Decrement/Remove item from Shoppipng cart page
+  1. Add click handler for the 'decrement' button on HTML template
+    `(click)="decrementQuantity(tempCartItem)"`
+  2. Update CartDetailsComponent with click handler method [cart-details.component.ts](03-frontend/anguler-ecommerce/src/app/components/cart-details/cart-details.component.ts)
+     ```JAVASCRIPT
+       decrementQuantity(theCartItem: CartItem){
+          this.cartService.decrementQuantity(theCartItem);
+        }
+     ```
+  3. Modify CartService with supporting method[cart.service.ts](03-frontend/anguler-ecommerce/src/app/services/cart.service.ts)
+    ```Javascript
+        decrementQuantity(theCartItem: CartItem) {
+          theCartItem.quantity--;
+          if(theCartItem.quantity===0){
+            this.remove(theCartItem);
+          }else{
+            this.computeCartTotals();
+          }
+        }
+        remove(theCartItem:CartItem){
+          //get the index of item in the array
+          const itemIndex = this.cartItems.findIndex(tempCartItem => tempCartItem.id == theCartItem.id);
+          //if found, remove the item from the array at the given index
+          if(itemIndex>-1){
+            this.cartItems.splice(itemIndex,1);
+            this.computeCartTotals();
+          }
+        }
+    ```
+  4. Repeat process for 'Remove' button
+    ```HTML
+    ```       <div>
+                <button
+                  (click)="remove(tempCartItem)"
+                  class="btn btn-primary btn-sm"
+                >
+                  Remove
+                </button>
+              </div>
+    ```Javascript
+        remove(theCartItem: CartItem){
+          this.cartService.remove(theCartItem);
+        }
+    ```
 
 ## Shopping cart check out
