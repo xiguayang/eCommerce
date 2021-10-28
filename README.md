@@ -1249,3 +1249,121 @@ solution 2: using 'safe-navigation operatoer'
     ```
 
 ## Shopping cart check out
+
+### Overview of Angular Forms
+  - Can easily build forms in Angular
+  - Supporst form data-binding, validation and processing
+  - Angular provides two types of forms
+    - Reactive forms
+      - leverages programmatic API for form building
+      - Scaleable solution that designed for large, complex forms
+      - Forms can be easily reused and tested
+    - Template-driven forms
+      - Targeted for small, simple forms
+      - Not a scalable solution for large, complex forms
+
+  #### Key Components 
+    | Name      | Description |
+    | ----------- | ----------- |
+    | FormControl | Individual control that tracks the value and validation status |
+    | FormGroup   | A collection of controls. Can create nested groups |
+    - our Checkout Form will using nested groups
+      - Customer
+      - Shiping Address
+      - Billing Address
+      - Credit Card
+      - Review Your Order
+
+  #### Form Construction and Layout Developmemnt Process
+    1. Generate our checkout component
+        `ng generate component components/checkout`
+    2. Add a new route for checkout component [app.module.ts](03-frontend/anguler-ecommerce/src/app/app.module.ts)
+        `{path: 'checkout', component:CheckoutComponent},`
+    3. Create a new checkout button and link to chekout component[cart-detials.component.html](03-frontend/anguler-ecommerce/src/app/components/cart-details/cart-details.component.html)
+        `<a routerLink="/checkout" class="btn btn-primary">Checkout</a>`
+    4. Add support for reactive forms
+        [app.module.ts](03-frontend/anguler-ecommerce/src/app/app.module.ts)
+        ```javascript
+            import {  ReactiveFormsModule } from '@angular/forms';
+              ReactiveFormsModule
+            ]
+        ```
+        [checkout.component.ts](03-frontend/anguler-ecommerce/src/app/components/checkout/checkout.component.ts)
+        `import { FormBuilder, FormGroup } from '@angular/forms';`
+    5. Define form in [checkout.component.ts](03-frontend/anguler-ecommerce/src/app/components/checkout/checkout.component.ts)
+        - inject the form builder in constructor
+            ```javascript
+              checkoutFormGroup: FormGroup;
+              constructor(private formBuilder: FormBuilder) { }
+            ```
+        - build form
+          - FormGroup name is the key of the group: customer
+          - FormControl names: these are teh form fileds
+          - FormControl initial values: empty string
+            ```javascript
+                this.checkoutFormGroup = this.formBuilder.group({
+                  customer: this.formBuilder.group({
+                    firstName:[''],
+                    lastName:[''],
+                    email:['']
+                  })
+                })
+            ```
+        - Method to call when submit button is clicked onSubmit
+          ```javascript
+            onSubmit(){
+              console.log("Handling the submit button");
+              console.log(this.checkoutFormGroup.get('customer').value);
+            }
+          ```
+    6. Layout form controls in HTML template 
+        [formGroup], formGroupName, formControlName are all defined in [checkout.component.ts]
+        ```HTML
+        <form [formGroup]="checkoutFormGroup" >
+            <!-- customer form group -->
+            <div formGroupName="customer" class="form-area">
+              <h3>Customer</h3>
+              <div class="row">
+                <div class="col-md-2"><label for="">First Name</label></div>
+                <input formControlName="firstName" type="text" />
+              </div>
+          ...
+        ```
+    7. Add event handler for from submission
+        (ngSubmit)="onSubmit()" 
+      ```HTML
+      <form [formGroup]="checkoutFormGroup" (ngSubmit)="onSubmit()">
+          <div class="text-center">
+            <button type="submit" class="btn btn-info">Purchase</button>
+          </div>
+      ```
+    8. Adding Shipping Address, Billing Address, credit card info
+       1. adding form groups in ts: `shippingAddress: this.formBuilder.group({....`
+       2. adding html template
+       3. adding a checkbox to copy value from shippingAddress to billingAddress
+            ```HTML
+                    <div class="input-space">
+                      <label class="au-checkbox"
+                        ><input
+                          type="checkbox"
+                          (change)="copyShippingAddressToBillingAddress($event)"
+                        />
+                        <span class="au-checkmark"></span>Billing Address same as Shipping Address
+                      </label>
+                    </div>
+            ```
+            [checkout.component.ts](03-frontend/anguler-ecommerce/src/app/components/checkout/checkout.component.ts)
+            ```Javascript
+              copyShippingAddressToBillingAddress(event){
+                if(event.target.checked){
+                  this.checkoutFormGroup.controls.billingAddress
+                  .setValue(this.checkoutFormGroup.controls.shippingAddress.value)
+                }else{
+                  this.checkoutFormGroup.controls.billingAddress.reset();
+                }
+              }
+            ```
+    9. Adding Order Review: define totalPrice and totalQuantity
+
+  #### Populating Drop-Down Lists in form
+
