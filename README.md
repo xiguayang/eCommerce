@@ -1366,4 +1366,288 @@ solution 2: using 'safe-navigation operatoer'
     9. Adding Order Review: define totalPrice and totalQuantity
 
   #### Populating Drop-Down Lists in form
+  ##### Development Process for creditcard month and year:
+     1. Generate our form service
+        `ng generate service services/eShopForm`
+     2. add methods to the form service fro months and years
+            [e-shop-form.service](03-frontend/anguler-ecommerce/src/app/services/e-shop-form.service.ts)
+         - importing library from rxjs: Reactive JavaScript
+         - wrap the object(here is array of number) as an Observable using 'of' operator from 'rxjs'
+            ```javaScript 
+                import { Observable } from 'rxjs';
+                import {of} from 'rxjs'
+                  //return an observable array of numbers
+                getCreditCardMonths(startMonth: number):Observable<number[]>{
+                  let data: number[]=[];
+                  //build an array for 'Month' dropdown list
+                  // - start at desired startMonth and loop until 12
+                  for(let theMonth = startMonth; theMonth<=12;theMonth++){
+                    data.push(theMonth)
+                  }                 
+                  return of(data);
+                }
+                  getCreditCardYears():Observable<number[]>{
+                    let data: number[]=[];
+                    //build an array for 'Year dropdown list
+                    // - start at current year and loop for next 10
+                    const startYear: number = new Date().getFullYear();
+                    const endYear: number=startYear+10;
+                    for(let theYear = startYear; theYear<=endYear;theYear++){
+                      data.push(theYear)
+                    }
+                    //wrap the objecy(here is array of number) as an Observable using 'of' operator from 'rxjs'
+                    return of(data);
+                }
+            ```
+     3. update checkout component to retrieve the months and years from the service[checkout.component.ts](03-frontend/anguler-ecommerce/src/app/components/checkout/checkout.component.ts)
+        - declare the year and month array, 
+        - inject eShopFormService in constructor
+        - get the current month: JavaScript Date Object the month is 0-based(0-11)
+        ```javascript
+            creditCardYear: number[]=[];
+            creditCardMonth: number[]=[];
+            constructor(private formBuilder: FormBuilder,
+                    private eShopFormService: EShopFormService) { }
+                    ...
+            //populate credit card months
+            //get current month(JS month is 0-based)
+            const startMonth: number = new Date().getMonth()+1;
+            this.eShopFormService.getCreditCardMonths(startMonth).subscribe(
+              data=>{
+                console.log("Retrieved credit card months: "+ JSON.stringify(data));
+                this.creditCardMonth=data
+              }
+            )
+            //populate credit card years
+            this.eShopFormService.getCreditCardYears().subscribe(
+              data=>{
+                this.creditCardYear=data;
+              }
+            )
+        ```
 
+     4. Update HTML template to populate drop-down lists for months and years[checkou.component.html](03-frontend/anguler-ecommerce/src/app/components/checkout/checkout.component.html)
+      ```HTML
+           <option *ngFor="let month of creditCardMonth">
+              {{ month }}
+      ```
+     5. Improvement: Dependent Fields: the month should depend on the year(if not current year, month should starts from 1)
+        1. Update HTML template
+           1. for the expiration years drop-down list
+           2. add event bindindg for change event
+            `<select formControlName="expirationYear" (change)="handleMonthsAndYears()">`
+        2. Update checkout Component, add event handler
+           1. read the selected year
+           2. update the list of months based on selected year
+           ```javascript
+             handleMonthsAndYears(){
+                const creditCardFormGroup = this.checkoutFormGroup.get('creditCard');
+                const currentYear: number = new Date().getFullYear();
+                const selectedYear: number = Number(creditCardFormGroup.value.expirationYear)
+                //if the current year equals the selected year, then month starts from current month
+                let startMonth: number;
+                if(currentYear===selectedYear){
+                  startMonth=new Date().getMonth()+1;
+                }else{
+                  startMonth=1;
+                }
+                //populate credit card months
+                this.eShopFormService.getCreditCardMonths(startMonth).subscribe(
+                  data=>{
+                    console.log("Retrieved credit card months: "+ JSON.stringify(data));
+                    this.creditCardMonth=data
+                  }
+                )
+                //populate credit card years
+                this.eShopFormService.getCreditCardYears().subscribe(
+                  data=>{
+                    this.creditCardYear=data;
+                  }
+                )
+              }
+           ```
+  ##### Development Process for populating country and state(backend REST API)
+  ###### Backend
+      1. create database tables
+          country(id, code, name) 1 to many state(id, name, country_id)
+          @OneToMany                         @ManyToOne
+          ```SQL
+          USE `full-stack-ecommerce`;
+          SET foreign_key_checks = 0;
+          --
+          -- Table structure for table `country`
+          --
+          DROP TABLE IF EXISTS `country`;
+
+          CREATE TABLE `country` (
+            `id` smallint unsigned NOT NULL,
+            `code` varchar(2) DEFAULT NULL,
+            `name` varchar(255) DEFAULT NULL,
+            PRIMARY KEY (`id`)
+          ) ENGINE=InnoDB;
+
+          DROP TABLE IF EXISTS `state`;
+          CREATE TABLE `state` (
+            `id` smallint unsigned NOT NULL AUTO_INCREMENT,
+            `name` varchar(255) DEFAULT NULL,
+            `country_id` smallint unsigned NOT NULL,
+            PRIMARY KEY (`id`),
+            KEY `fk_country` (`country_id`),
+            CONSTRAINT `fk_country` FOREIGN KEY (`country_id`) REFERENCES `country` (`id`)
+          ) ENGINE=InnoDB AUTO_INCREMENT=1;
+          ```
+      2. develop JPA Enities: Country.java, State.java
+        ```Java
+            @Entity
+            @Table(name="country")
+            @Getter
+            @Setter
+            public class Country {
+                @Id
+                @GeneratedValue(strategy = GenerationType.IDENTITY)
+                @Column(name="id")
+                private  int id;
+                @Column(name="code")
+                private String code;
+                @Column(name="name")
+                private String name;
+                @OneToMany(mappedBy = "country")
+                private List<State> states;
+            }
+            @Entity
+            @Table(name="state")
+            @Data
+            public class State {
+                @Id
+                @GeneratedValue(strategy= GenerationType.IDENTITY)
+                @Column(name="id")
+                private int id;
+                @Column(name="name")
+                private String name;
+                @ManyToOne
+                @JoinColumn(name="country_id")
+                private Country country;
+            }
+        ```
+      3. create Spring Data Repository
+        ```java
+        @CrossOrigin("http://localhost:4200")
+        @RepositoryRestResource
+        public interface StateRepository extends JpaRepository<State, Integer> {
+            //to retrieve states for a given country code
+            //http://localhost:8080//api/states/search/findByCountryCode?code=IN
+            List<State> findByCountryCode(@Param("code") String code);
+        }
+
+        @CrossOrigin("http://localhost:4200")
+        @RepositoryRestResource(collectionResourceRel = "countries", path="countries")
+        //expose/countries endpoint
+        public interface CountryRepository extends JpaRepository<Country, Integer> {
+        }
+        ```
+      4. Updating Spring Data REST configs
+         refactor the method to disableHttp method for country and state too(only read)
+         ```java
+            disableHttpMethods(Country.class, config, theUnsupportedActions);
+            disableHttpMethods(State.class, config, theUnsupportedActions);
+            private void disableHttpMethods(Class theClass, RepositoryRestConfiguration config, HttpMethod[] theUnsupportedActions) {
+                  config.getExposureConfiguration()
+                  .forDomainType(theClass)
+                  .withItemExposure((metdata, httpMethods) -> httpMethods.disable(theUnsupportedActions))
+                  .withCollectionExposure((metdata, httpMethods) -> httpMethods.disable(theUnsupportedActions));
+           }
+         ```
+  ###### Frontend: user selects a country==>then populate states for the selected country
+    1. Create TypeScript classed for Country and State
+        `ng generate class common/Country`
+        `ng generate class common/State`
+        ```javascript
+        export class Country {
+            id:number;
+            code: string;
+            name:string;
+        }
+        ```
+    2. Add methods to the form service for countries and states[e-shop-form.service.ts](03-frontend/anguler-ecommerce/src/app/services/e-shop-form.service.ts)
+    ```Javascript
+      {
+        private stateUrl="http://localhost:8080/api/states";
+        private countryUrl="http://localhost:8080/api/countries";
+        //returns an observable, map the JSON datat from Spring data REST to country array
+        getCountries() : Observable<Country[]>{
+          return this.httpClient.get<GetResponseCountry>(this.countryUrl).pipe(
+            map(responese=>responese._embedded.countries)
+          )
+        }
+        getStates(theCountryCode: string) : Observable<State[]>{
+          const url=`${this.stateUrl}/search/findByCountryCode`+`?code=${theCountryCode}`
+          return this.httpClient.get<GetResponseStates>(url).pipe(
+            map(responese=>responese._embedded.states)
+          )
+        }
+
+      }
+      //unwraps the JSON from Spring Data REST _embedded entry
+      interface GetResponseCountry{
+        _embedded:{
+          countries: Country[];
+        }
+      }
+      interface GetResponseStates{
+        _embedded:{
+          states: State[];
+        }
+      }
+    ```
+    3. Update checkout component to retrieve the countries from services[checkout.component.ts](03-frontend/anguler-ecommerce/src/app/components/checkout/checkout.component.ts)
+    ```javascript
+      countries:Country[]=[];
+      ngOnInit():void{
+        ...
+          //populate countries
+          this.eShopFormService.getCountries().subscribe((data)=>{this.countries = data;})
+      }
+    ```
+    4. Update HTML template to populate drop-down lists for the countries[checkout.component.html](03-frontend/anguler-ecommerce/src/app/components/checkout/checkout.component.html)
+      - [ngValue]: keep reference for country object to use it later
+      ```HTML
+                <select
+                  formControlName="country"
+                  (change)="getStates('shippingAddress')"
+                >
+                  <option *ngFor="let country of countries" [ngValue]="country">
+                    {{ country.name }}
+                  </option>
+                </select>
+      ```
+    5. Add event handler for checkout component
+       1. Read selected country, retireve a list of states based on selected country[checkout.component.ts](03-frontend/anguler-ecommerce/src/app/components/checkout/checkout.component.ts)
+        ```javascript
+            shippingAddressStates: State[]=[];
+            billingAddressStates: State[]=[];
+            getStates(formGroupName:string){
+              const formGroup = this.checkoutFormGroup.get(formGroupName);
+              const countryCode = formGroup.value.country.code;
+              this.eShopFormService.getStates(countryCode).subscribe(
+                data=>{
+                  if(formGroupName ==="shippingAddress"){
+                    this.shippingAddressStates=data;
+                  }else{
+                    this.billingAddressStates=data;
+                  }
+                  //select first item by default
+                  formGroup.get('state').setValue(data[0])
+                }
+              )
+            }
+        ```
+    6. Update HTML template to populate drop-down lists for states
+        ```HTML
+                  <option
+                    *ngFor="let state of shippingAddressStates"
+                    [ngValue]="state"
+                  >
+                    {{ state.name }}
+                  </option>
+        ```
+        also update billing address country and states
