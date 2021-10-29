@@ -1274,7 +1274,7 @@ solution 2: using 'safe-navigation operatoer'
       - Credit Card
       - Review Your Order
 
-  #### Form Construction and Layout Developmemnt Process
+  ### Form Construction and Layout Developmemnt Process
     1. Generate our checkout component
         `ng generate component components/checkout`
     2. Add a new route for checkout component [app.module.ts](03-frontend/anguler-ecommerce/src/app/app.module.ts)
@@ -1651,3 +1651,135 @@ solution 2: using 'safe-navigation operatoer'
                   </option>
         ```
         also update billing address country and states
+        - bug fixed: checkedbox for same billingAddress
+
+  ##### Form Validation
+  ##### Angular built-in validation rules
+      - required: Must be non-empty
+      - min: a number >=value
+      - max: a number <=value
+      - minLength: length >=value
+      - maxLength
+      - pattern: must match a reqular expression pattern
+      - email
+      - others...
+        - Additional validation features
+          - define cutsom validators
+          - cross-field validation
+          - asychronous validators
+  ###### Development Process for user info
+    1. Specify validation rules for the form controls
+           1. Recall that a form field is represented by FormControl object
+           2. Create the **FormControl** and pass in initial value and validators
+              basic synatx `new FormControl(initialValue, validators, ...)`
+              example: `new FormControl('',[Validators.required, Validators.minLength(2)])`//array of validators
+          [checkout.component.ts](03-frontend/anguler-ecommerce/src/app/components/checkout/checkout.component.ts)
+          ```javascript
+            customer: this.formBuilder.group({
+              firstName: new FormControl('',[Validators.required, Validators.minLength(2)]),
+              lastName: new FormControl('',[Validators.required, Validators.minLength(2)]),
+              email: new FormControl('', [Validators.required, Validators.pattern('^[a-z0-9._%+-]+@[a-z0-9.-]+\\.[a-z]{2,4}$')])
+            }),
+          ```
+    2. Define Getter methods to access form controls
+          [checkout.component.ts](03-frontend/anguler-ecommerce/src/app/components/checkout/checkout.component.ts)
+          ```javascript
+          get firstName(){
+            return this.checkoutFormGroup.get('customer.firstName');
+          }
+          ```
+    3. Update HTML template to display error message
+            - if validation fails then display error messages
+            - only display validation errors if user has interacted with the form
+              - when user changes field value, the control is marked as 'dirty'
+              - when the field loses focus, the control is marked as 'touched'
+          ```HTML
+                <input formControlName="firstName" type="text" />
+                <div
+                  *ngIf="
+                    firstName.invalid && (firstName.dirty || firstName.touched)
+                  "
+                  class="alert alert-danger"
+                >
+                  <div *ngIf="firstName.errors.required">
+                    First Name is required
+                  </div>
+                  <div *ngIf="firstName.errors.minlength">
+                    First Name must be at least 2 characters long
+                  </div>
+                </div>
+          ```
+          
+    4. Add event handler to check validation status when submit button clicked
+          ```JAVASCRIPT
+            onSubmit(){
+              if(this.checkoutFormGroup.invalid){
+                this.checkoutFormGroup.markAllAsTouched();
+              }
+            }
+          ```
+  ###### White Space: in the required fields, only enter whiltespace passes validation which should failed
+      - solve by creating a Custom Validator: notOnlyWhiltespace
+        1. Define custom validator rule [eshop-validators.ts](03-frontend/anguler-ecommerce/src/app/validators/eshop-validators.ts)
+          - if validation check fails then return validation error(s), else return null
+          - ValidationErrors: Map of errors returned from failed validation checks
+          ```javascript
+           import { FormControl, ValidationErrors } from '@angular/forms';
+            export class EshopValidators{
+                //define whitespace validatoion
+                //if validation check fails then return validation error(s), else return null
+                // Map of errors returned from failed validation checks
+                static notOnlyWhitespace(control: FormControl): ValidationErrors{
+                    //check if string only contains whitespace
+                    if((control.value!=null)&& (control.value.trim().length ===0)){
+                        //invalid: return error object
+                        //Validation error key: 'notOnlyWhitespace'
+                        //The HTML template will check for this error key
+                        return {'notOnlyWhitespace': true}
+                    }else{
+                        //valid, return null
+                        return null;
+                    }
+                }
+            }
+          ```
+        2. Specify custom validator rule for the form controls
+            `firstName: new FormControl('',[Validators.required, Validators.minLength(2), EshopValidators.notOnlyWhitespace], ),`
+        3. Update HTML template to display error message
+           1. if validation fails then display error message
+           2. reference to our custom validation error key
+            ```HTML
+                  <div *ngIf="firstName.errors.required || firstName.errors.notOnlyWhitespace">
+                    First Name is required
+                  </div>
+            ```
+
+  ###### Development Process for Shipping/Billing/Credit Card Validation
+  1. Specify validation rules for the form controls
+  2. Define Getter methods to access form controls
+  3. Update HTML template to display error messages
+  
+  ##### Form - Update Review Cart Totals
+   - Cart Service - Publishing messages/events
+     - Recall that we send messages/events to other components in our application
+     - Using different Subject
+       - ReplaySubject: 
+         - keep a buffer of previous events, 
+         - once subscribed, subscriber receives a replay of all previous events
+       - Subject: 
+         - Does not keep a buffer of previous events, 
+         - subscriber only receives new events after they are subscribed
+       - BehaviorSubject: 
+         - has a buffer of the last event, 
+         - once subscribed, subscriber receives the latest event sent prior to subscribing
+   - Development Process
+      1. Updates for checkoutComponent
+         1. Inject CartService into CheckoutComponent
+         2. In ngOnit method, call new method: reviewCartDetaisl()
+         3. Add code for new method to subscribe cartService
+      2. Update for CartService
+         1. Change Subject to BehaviorSubject
+          ```JavaScript
+            totalPrice: Subject<number> = new BehaviorSubject<number>(0);
+            totalQuantity:  Subject<number> = new BehaviorSubject<number>(0);
+          ```
