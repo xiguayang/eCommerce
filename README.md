@@ -9,7 +9,7 @@
 - [x] Master/Detail view of products
 - [x] Pagination support for products
 - [x] Add products to shopping cart(CRUD)
-- [ ] Shopping cart check out
+- [x] Shopping cart check out
 
 ## Online Shop Template Integration
 *Wireframes*: 
@@ -1274,7 +1274,7 @@ solution 2: using 'safe-navigation operatoer'
       - Credit Card
       - Review Your Order
 
-  ### Form Construction and Layout Developmemnt Process
+### Form Construction and Layout Developmemnt Process
     1. Generate our checkout component
         `ng generate component components/checkout`
     2. Add a new route for checkout component [app.module.ts](03-frontend/anguler-ecommerce/src/app/app.module.ts)
@@ -1365,8 +1365,8 @@ solution 2: using 'safe-navigation operatoer'
             ```
     9. Adding Order Review: define totalPrice and totalQuantity
 
-  #### Populating Drop-Down Lists in form
-  ##### Development Process for creditcard month and year:
+### Populating Drop-Down Lists in form
+  #### Development Process for creditcard month and year:
      1. Generate our form service
         `ng generate service services/eShopForm`
      2. add methods to the form service fro months and years
@@ -1466,8 +1466,8 @@ solution 2: using 'safe-navigation operatoer'
                 )
               }
            ```
-  ##### Development Process for populating country and state(backend REST API)
-  ###### Backend
+  #### Development Process for populating country and state(backend REST API)
+  ##### Backend
       1. create database tables
           country(id, code, name) 1 to many state(id, name, country_id)
           @OneToMany                         @ManyToOne
@@ -1557,7 +1557,7 @@ solution 2: using 'safe-navigation operatoer'
                   .withCollectionExposure((metdata, httpMethods) -> httpMethods.disable(theUnsupportedActions));
            }
          ```
-  ###### Frontend: user selects a country==>then populate states for the selected country
+  ##### Frontend: user selects a country==>then populate states for the selected country
     1. Create TypeScript classed for Country and State
         `ng generate class common/Country`
         `ng generate class common/State`
@@ -1653,8 +1653,8 @@ solution 2: using 'safe-navigation operatoer'
         also update billing address country and states
         - bug fixed: checkedbox for same billingAddress
 
-  ##### Form Validation
-  ##### Angular built-in validation rules
+### Form Validation
+  #### Angular built-in validation rules
       - required: Must be non-empty
       - min: a number >=value
       - max: a number <=value
@@ -1667,7 +1667,7 @@ solution 2: using 'safe-navigation operatoer'
           - define cutsom validators
           - cross-field validation
           - asychronous validators
-  ###### Development Process for user info
+  #### Development Process for user info
     1. Specify validation rules for the form controls
            1. Recall that a form field is represented by FormControl object
            2. Create the **FormControl** and pass in initial value and validators
@@ -1718,7 +1718,7 @@ solution 2: using 'safe-navigation operatoer'
               }
             }
           ```
-  ###### White Space: in the required fields, only enter whiltespace passes validation which should failed
+  #### White Space: in the required fields, only enter whiltespace passes validation which should failed
       - solve by creating a Custom Validator: notOnlyWhiltespace
         1. Define custom validator rule [eshop-validators.ts](03-frontend/anguler-ecommerce/src/app/validators/eshop-validators.ts)
           - if validation check fails then return validation error(s), else return null
@@ -1754,12 +1754,12 @@ solution 2: using 'safe-navigation operatoer'
                   </div>
             ```
 
-  ###### Development Process for Shipping/Billing/Credit Card Validation
+  #### Development Process for Shipping/Billing/Credit Card Validation
   1. Specify validation rules for the form controls
   2. Define Getter methods to access form controls
   3. Update HTML template to display error messages
   
-  ##### Form - Update Review Cart Totals
+### Form - Update Review Cart Totals
    - Cart Service - Publishing messages/events
      - Recall that we send messages/events to other components in our application
      - Using different Subject
@@ -1783,3 +1783,316 @@ solution 2: using 'safe-navigation operatoer'
             totalPrice: Subject<number> = new BehaviorSubject<number>(0);
             totalQuantity:  Subject<number> = new BehaviorSubject<number>(0);
           ```
+
+### Save the Order to DB
+#### save the order: backend
+  - send the checkout order to the backend and store in db
+    - Anguer <--REST API---> SPRING BOOT: CheckoutController--->CheckoutService--->Spring Data JPA Repository(DB)
+    - Custom Controller and Service
+      - CheckoutController
+      - CheckoutService
+    - Why not Spring Data REST?
+      - Spring Data REST is great for basic CURD
+      - Not the best for processing the order using custom business logic
+        - Generate custom tracking number
+        - Save order in db
+        - ...other cutsom business logic
+  - Database Diagram
+    - customer <--1 to many--> orders <--1 to Many--> order_Item
+    - orders<--1 to 1--> address(shippingAdd, billingAdd)
+  - Data Transfer Object
+    - Data transfer between Angular front0-end and Spring Boot back-end
+      - Angular ==>Purchase: Customer, ShippingAddress, BillingAddress, Order, OrderItem[]===>Spring Boot
+  - REST API: 
+    - Support POST method for checkout purchase
+    - Request body contains JSON for Purchase data transfer object
+      - POST  /api/checkout/purchase    new purchase action
+
+  ##### Development Process - Spring Boot
+    1. Run database script
+      [create-order-tables.sql](00-starter-files/db-scripts/create-order-tables.sql)
+    2. Create entities
+       [Customer.java](02-back_end/spring-boot-ecommerce/src/main/java/com/hahagroup/ecommerce/entity/Customer.java)
+       id: long;
+       firstName:String
+       lastName: String
+       email: String
+       [Address.java](02-back_end/spring-boot-ecommerce/src/main/java/com/hahagroup/ecommerce/entity/Address.java)
+       [Order.java](02-back_end/spring-boot-ecommerce/src/main/java/com/hahagroup/ecommerce/entity/Order.java)
+       [OrderItem.java](02-back_end/spring-boot-ecommerce/src/main/java/com/hahagroup/ecommerce/entity/OrderItem.java)
+       - Set up entity Relationships
+         - Order has a collection of orderItems
+           - Order
+                ```java
+                    @OneToMany(cascade = CascadeType.ALL, mappedBy ="order" )
+                    private Set<OrderItem> orderItems= new HashSet<>();
+                    public void add(OrderItem item){
+                        if(item != null){
+                            if(orderItems ==null){
+                                orderItems=new HashSet<>();
+                            }
+                            orderItems.add(item);
+                            item.setOrder(this);
+                        }
+                    }
+                ```
+           - OrderItem
+                ```  java
+                  @ManyToOne
+                  @JoinColumn(name="order_id")
+                  private Order order;
+                ```
+         - Order is associated with a Customer
+           - Order
+                ```java
+                    @ManyToOne
+                    @JoinColumn(name="customer_id")
+                    private  Customer customer;
+                ```
+           - Customer
+                ```java
+                    @OneToMany(mappedBy ="customer", cascade = CascadeType.ALL)
+                    private Set<Order> orders = new HashSet<>();
+
+                    public void add(Order order){
+                        if(order !=null){
+                            if(orders ==null){
+                                orders=new HashSet<>();
+                            }
+                        }
+                        orders.add(order);
+                        order.setCustomer(this);
+                    }
+                ```
+         - Order is associate with Address, shipping and billing addrsss
+           - Order
+              ```java
+                  @OneToOne(cascade = CascadeType.ALL)
+                  @JoinColumn(name = "shipping_address_id", referencedColumnName="id")
+                  private Address shippingAddress;
+
+                  @OneToOne(cascade = CascadeType.ALL)
+                  @JoinColumn(name = "billing_address_id", referencedColumnName="id")
+                  private Address billingAddress;
+              ```
+           - Address
+                ```java
+                    @OneToOne
+                    @PrimaryKeyJoinColumn
+                    private Order order;
+                ```
+    3. Create data transfer objects
+        add new package dto
+        [Purchase.java](02-back_end/spring-boot-ecommerce/src/main/java/com/hahagroup/ecommerce/dto/Purchase.java)
+        [PurchaseResponse.java](02-back_end/spring-boot-ecommerce/src/main/java/com/hahagroup/ecommerce/dto/PurchaseResponse.java)
+        ```java
+        @Data
+        public class PurchaseResponse {
+            //using this class to send back a java object as JSON
+            private  String orderTrackingNumber;
+        }
+        @Data
+        public class Purchase {
+            private Customer customer;
+            private Address shippingAddress;
+            private Address billingAddress;
+            private Order order;
+            private Set<OrderItem> orderItems;
+        }
+
+        ```
+    4. Create repository
+       [CustomerRepository.java](02-back_end/spring-boot-ecommerce/src/main/java/com/hahagroup/ecommerce/dao/CustomerRepository.java)
+       ```java
+       public interface CustomerRepository extends JpaRepository<Customer, Long> {}
+       ```
+    5. Create Service
+        create service package
+        [CheckoutService.java](02-back_end/spring-boot-ecommerce/src/main/java/com/hahagroup/ecommerce/service/CheckoutService.java)
+          `public interface CheckoutService {PurchaseResponse placeOrder(Purchase purchase);}`
+        [CheckoutServiceImpl.java](02-back_end/spring-boot-ecommerce/src/main/java/com/hahagroup/ecommerce/service/CheckoutServiceImpl.java)
+        ```java
+        @Service
+          public class CheckoutServiceImpl implements CheckoutService{
+              private CustomerRepository customerRepository;
+              @Autowired
+              //autowired is optional since we only have one constructor
+              public CheckoutServiceImpl(CustomerRepository customerRepository){
+                  this.customerRepository=customerRepository;
+              }
+
+              @Override
+              public PurchaseResponse placeOrder(Purchase purchase) {
+                  //retrieve teh order info from dto
+                  Order order = purchase.getOrder();
+                  //generate tracking number
+                  String orderTrackingNumber = generateOrderTrackingNumber();
+                  order.setOrderTrackingNumber(orderTrackingNumber);
+                  //populate order with orderItems
+                  Set<OrderItem> orderItems = purchase.getOrderItems();
+                  orderItems.forEach(item -> order.add(item));
+                  //populate order with billingAddress and billingAddress
+                  order.setBillingAddress(purchase.getBillingAddress());
+                  order.setShippingAddress(purchase.getShippingAddress());
+                  //populate customer with order
+                  Customer customer = purchase.getCustomer();
+                  customer.add(order);
+                  //save to the database
+                  customerRepository.save(customer);
+                  //return a response;
+                  return new PurchaseResponse(orderTrackingNumber);
+              }
+          }
+        ```
+    6. Create Controller
+        controller package [CheckoutController.java](02-back_end/spring-boot-ecommerce/src/main/java/com/hahagroup/ecommerce/controller/CheckoutController.java)
+        ```java
+        @CrossOrigin("http://localhost:4200")
+        @RestController
+        @RequestMapping("/api/checkout")
+        public class CheckoutController {
+            private CheckoutService checkoutService;
+            @Autowired
+            public CheckoutController(CheckoutService checkoutService){
+                this.checkoutService=checkoutService;
+            }
+            @PostMapping("/purchase")
+            public PurchaseResponse placeOrder(@RequestBody Purchase purchase){
+                PurchaseResponse purchaseResponse = checkoutService.placeOrder(purchase);
+                return purchaseResponse;
+            }
+        }
+        ```
+    7. using postman to test 
+       1. copy from sample-purchase.json TO body.raw JSON
+       2. POST http://localhost:8080/api/checkout/purchase 
+       3. check if returns a orderTrackingNumber
+
+#### save the order: frontend
+##### Development Process - Angular
+1. Create common classes
+   1. Customer, Order, OrderItem, Address, Purchase
+   2. [Order.ts](03-frontend/anguler-ecommerce/src/app/common/order.ts)
+    ```javascript
+    import { CartItem } from './cart-item';
+    export class OrderItem {
+        imageUrl: string;
+        unitPrice:number;
+        quantity:number;
+        productId:string;
+
+        constructor(cartItem: CartItem){
+            this.imageUrl=cartItem.imageUrl;
+            this.quantity = cartItem.quantity;
+            this.unitPrice = cartItem.unitPrice;
+            this.productId=cartItem.id;
+        }
+    }
+    ```
+2. Create CheckoutService
+   1. Make REST API call to Spring Boot backend
+    `ng generate service services/Checkout`[checkout.service.ts](03-frontend/anguler-ecommerce/src/app/services/checkout.service.ts)
+    ```javascript
+    export class CheckoutService {
+
+        private purchaseUrl = "http://localhost:8080/api/checkout/purchase"
+        constructor(private httpClient:HttpClient) { }
+        placeOrder(purchase: Purchase):Observable<any>{
+          return this.httpClient.post<Purchase>(this.purchaseUrl,purchase);
+        }
+      }
+    ```
+3. Update CheckoutComponent[checkout.component.ts](03-frontend/anguler-ecommerce/src/app/components/checkout/checkout.component.ts)
+   1. Inject CheckoutService and Router
+    ```javascript
+      constructor(private formBuilder: FormBuilder,
+              private eShopFormService: EShopFormService,
+              private cartService: CartService,
+              private checkoutService:CheckoutService,
+              private router:Router) { }
+    ```
+   2. Update onSubmit() method to collect form data, call CheckoutService
+      1. set up order
+      2. get cart items
+      3. create orderItems from cartItems
+      4. set up purchase
+      5. populate purchase - customer
+      6. populate purchase - shipping address
+      7. populate purchase - billing address
+      8. populate purchase - order and orderItems
+      9. call REST API via chekcoutService
+      10. reset form and cart
+    ```javascript
+      onSubmit(){
+
+        if(this.checkoutFormGroup.invalid){
+          this.checkoutFormGroup.markAllAsTouched();
+          return;
+        }
+        // set up order
+        let order = new Order();
+        order.totalPrice = this.totalPrice;
+        order.totalQuantity = this.totalQuantity;
+        // get cart items
+        const cartItems = this.cartService.cartItems;
+        // create orderItems from cartItems
+        // - long wary
+        // let orderItems: OrderItem[]=[];
+        // for(let i =0;i<cartItems.length;i++){
+        //   orderItems[i] = new OrderItem(cartItems[i]);
+        // }
+        // - short way
+        let orderItems: OrderItem[] = cartItems.map(tempCartItem => new OrderItem(tempCartItem))
+        // set up purchase
+        let purchase = new Purchase();
+
+        // populate purchase - customer
+        purchase.customer = this.checkoutFormGroup.controls['customer'].value;
+
+        // populate purchase - shipping address
+        purchase.shippingAddress = this.checkoutFormGroup.controls['shippingAddress'].value;
+        const shippingState: State = JSON.parse(JSON.stringify(purchase.shippingAddress.state))
+        const shippingCountry: Country = JSON.parse(JSON.stringify(purchase.shippingAddress.country))
+        purchase.shippingAddress.state=shippingState.name;
+        purchase.shippingAddress.country = shippingCountry.name;
+
+        // populate purchase - billing address
+        purchase.billingAddress = this.checkoutFormGroup.controls['billingAddress'].value;
+        const billingState: State = JSON.parse(JSON.stringify(purchase.billingAddress.state))
+        const billingCountry: Country = JSON.parse(JSON.stringify(purchase.billingAddress.country))
+        purchase.billingAddress.state=billingState.name;
+        purchase.billingAddress.country = billingCountry.name;
+
+        // populate purchase - order and orderItems
+        purchase.order = order;
+        purchase.orderItems = orderItems;
+
+        // call REST API via chekcoutService
+        this.checkoutService.placeOrder(purchase).subscribe(
+          {
+            next: response=>{
+              alert(`Your order has been received. \n Order tracking number: ${response.orderTrackingNumber}`)
+              //reset cart
+              this.resetCart();
+            },
+            error: err=>{
+              alert(`There was an error: ${err.message}`)
+            }
+          }
+
+        )
+      
+
+      }
+      resetCart() {
+        //reset cart data
+        this.cartService.cartItems=[];
+        this.cartService.totalPrice.next(0);
+        this.cartService.totalQuantity.next(0);
+        //reset the form
+        this.checkoutFormGroup.reset();
+        //navigate back to the products page
+        this.router.navigateByUrl("/products")
+      }
+    ```
+
