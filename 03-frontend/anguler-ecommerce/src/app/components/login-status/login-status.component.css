@@ -30,7 +30,7 @@ copy from styles.css .au-input
 Rename as .login-status-user-info
 remove 'solid', 'font-size','color'
 */
-login-status-user-info {
+.login-status-user-info {
   line-height: 43px;
   border: 1px;
   padding: 0 17px;

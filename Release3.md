@@ -1,5 +1,5 @@
 ## Release 3.0
-  - [] User login/logout security
+  - [x] User login/logout security
   - [] Provide access to special VIP page 
   - [] Keep track of order history for registered customers
 
@@ -179,4 +179,36 @@
       })
       ```
 
-      
+#### User Registration Process 
+- email activation
+  - Okta will send the user an email
+  - can make it mandatory(production) or optional(dev) 
+  1. Enable User Registration in  Okta Dashboard: enable self-registration
+  2. Configure code in login component
+
+### VIP member Access
+- provide access to special member page only for authenticated users
+  - add protected route: http://localhost:4200/members
+  - clicking member button redirect to a special member page
+
+- Angular Route Guardsprevents users from accessing a part of an app without authorization
+  - common route guard interface is : CanActivate
+  - can provide a custom implementation four a route guard interface
+  - return true if user can access, false otherwise
+   
+- Okta provides a route guard implementation: OktaAuthGuard
+  - Link member button to a route
+  - route guard configuration in the specific route 
+    - if authenticated, give access to route, else, send to login page
+  `{path: 'members', component: MembersPageComponent, canActivate:[OktaAuthGuard]} `
+
+#### Development Process --- VIP member Access 
+1. Generate members-page component `ng generate component  components/MembersPage`
+2. Update Template text in HTML page
+3. Add 'Member' button to login-status component
+    `  <button routerLink="/members" class="security_btn">Member</button>`
+4. Define protected route for members-page component
+    ```ts
+    const routes: Routes=[
+      {path: 'members', component: MembersPageComponent, canActivate:[OktaAuthGuard]} ,
+    ```
