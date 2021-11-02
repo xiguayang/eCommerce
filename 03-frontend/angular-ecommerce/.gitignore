@@ -44,4 +44,6 @@ testem.log
 .DS_Store
 Thumbs.db
 #images assets
-src/assets/images
+/src/assets/images
+
+/src/app/config
