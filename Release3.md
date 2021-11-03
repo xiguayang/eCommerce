@@ -1,6 +1,6 @@
 ## Release 3.0
   - [x] User login/logout security
-  - [] Provide access to special VIP page 
+  - [x] Provide access to special VIP page 
   - [] Keep track of order history for registered customers
 
 ### Terms:
@@ -209,6 +209,70 @@
     `  <button routerLink="/members" class="security_btn">Member</button>`
 4. Define protected route for members-page component
     ```ts
+    //inject
+    const oktaConfig = Object.assign({
+        onAuthRequired: (oktaAuth, injector)=>{
+    ...
+    }})
     const routes: Routes=[
       {path: 'members', component: MembersPageComponent, canActivate:[OktaAuthGuard]} ,
     ```
+
+
+### Fix bug when refreshing page
+- Bugs
+  -  refresh page, lose products in the cart
+  -  products lost after login 
+- Solotion: keep track of the cart products using client side browser web storage
+   -  HTML5 introduced the Web Storage API
+      -  store data in the browser using key/value pairs
+      -  similar to cookies but provides a more intuitive API
+      -  require modern web browser support HTML5
+   - 2 types Web Storage API 
+     - Session Storage: stored in web browswer's memory
+       - data is never sent to server(not HttpSession), web browser client-side session
+       - each web browser tab is its own session, data not shared between web browser tabs
+       - when tab is closed, data is no longer avaliable
+     - Local Storage: stored on client side computer
+       - stores data locally on client web browser computer
+       - data ss avaliable to tabs of the same web browser for same origin(protocol+hostname+port)
+         - app must read data again, normally with a browser refresh
+       - Data persists even if the web browser is closed(no expiration)
+   - Web Storage API, based on key and value
+     - data is scoped to the page origin
+       - store item: storage.setItem(key,value): void
+       - retrieve item: storage.getItem(key): string
+       - removeItem(key): void
+       - clear(): void
+ - Development Process
+  1. Update CartService to read data from session storage[cart.service.ts](03-frontend/anguler-ecommerce/src/app/services/cart.service.ts)
+    ```ts
+    storage: Storage = sessionStorage;
+      constructor() { 
+    //read data from storage
+    //JSON.parse(): read JSON string and converts to object
+    let data = JSON.parse(this.storage.getItem('cartItems'));
+    if(data!=null){
+      this.cartItems=data;
+      //compute the totals based on data that is read from storage
+      this.computeCartTotals()
+    }
+  }
+    ```
+  2. Add new method in CardService: persistCartItems()
+  ```ts
+    //JSON.stringify(...): convert object to JSON string
+    persistCartItems(){
+      this.storage.setItem('cartItems', JSON.stringify(this.cartItems));
+    }
+  ```
+  3. Modify computeCartTotals() to call new method: persistCartItems()
+   ```ts
+     computeCartTotals() {
+        ...
+      //persist cart data
+      this.persistCartItems()}
+  ```
+  ==> using localStorage instead of sessionStorage: closing tab doesent lose data
+  `storage: Storage=localStorage; //data is persisted and survives brwoser restarts`
+  data is not encrypted; from inspect/application/storage can check to review the storage
