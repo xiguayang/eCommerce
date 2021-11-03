@@ -1,6 +1,8 @@
 ## Release 3.0
   - [x] User login/logout security
   - [x] Provide access to special VIP page 
+  - [x] Handle Page Refresh
+  - [x] Handle Customer by email(refactor)
   - [] Keep track of order history for registered customers
 
 ### Terms:
@@ -276,3 +278,61 @@
   ==> using localStorage instead of sessionStorage: closing tab doesent lose data
   `storage: Storage=localStorage; //data is persisted and survives brwoser restarts`
   data is not encrypted; from inspect/application/storage can check to review the storage
+
+
+### Handle Customers by Email(refactor)
+- Bugs:
+  - currently, we perform multiple checkouts with same email address
+  - multiple customers with same email address
+- Solution:
+  - A single customer is asscociated with multiple orders
+  - on backend, in our CheckoutServiceImpl
+    - Check database if customer already exists based on email
+    - if so then using the existing custoemr from database
+    - else we have a new customer
+- Development Process
+  - Remove existing data from db tables
+    - truncate commmand removes all rows from a table
+      - faster than delete, resets auto_increment back to starting value
+      ```sql
+      USE `full-stack-ecommerce`;
+      -- clean up previous database tables
+      -- disable foreign key checks ok
+      SET FOREIGN_KEY_CHECKS=0;
+      TRUNCATE customer;
+      TRUNCATE orders;
+      TRUNCATE order_item;
+      TRUNCATE address;
+      SET FOREIGN_KEY_CHECKS =1;
+      ```
+  - Modify db schema to only allow unique email address
+  ` ALTER TABLE customer ADD UNIQUE (email);`
+    - set database constraint, MySQL will throw an error if you attempt to insert duplicate email
+  - Add new method to CutsomerRepository
+    - Spring Data REST and Spring Data JPA supports 'query methods'
+    - Spring will construct a query based on method meaninng
+    - [CustomerRepository.java](02-back_end/spring-boot-ecommerce/src/main/java/com/hahagroup/ecommerce/dao/CustomerRepository.java)
+    - Customer findByEmail(String theEmail)
+      - behaind the scenes, Spring will execute a query similar to :
+          - `SELECT * FROM customer c WHERE c.email = theEmail`
+          - method returns null if not found 
+  - Upadate CheckoutServiceImpl[CheckoutService.Impl](02-back_end/spring-boot-ecommerce/src/main/java/com/hahagroup/ecommerce/service/CheckoutServiceImpl.java)
+    - Check if customer already exists..if so then using teh existing customer
+    ```java
+        public PurchaseResponse placeOrder(Purchase purchase) {
+          ...
+            //populate customer with order
+            Customer customer = purchase.getCustomer();
+            //check if this is an existing customer by the given email..
+            String theEmail = customer.getEmail();
+            Customer customerFromDB = customerRepository.findByEmail(theEmail);
+            if(customerFromDB !=null){
+                //the customer with theEmail has existed in DB
+                customer = customerFromDB;
+            }
+            customer.add(order);
+            //save to the database
+            customerRepository.save(customer);
+    ```
+
+### Order History
