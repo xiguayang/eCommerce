@@ -335,4 +335,62 @@
             customerRepository.save(customer);
     ```
 
+
+### Backend Configs Refactoring
+#### development process
+1. Fix deprecated method for Spreing Data REST
+   1. [MyDataRestConfig.java](02-back_end/spring-boot-ecommerce/src/main/java/com/hahagroup/ecommerce/config/MyDataRestConfig.java)
+      using CorsRegistry
+      `public void configureRepositoryRestConfiguration(RepositoryRestConfiguration config, CorsRegistry cors) {`
+2. Configure CORS mapping for Spring Data REST
+    - ` cors.addMapping("/api/**").allowedOrigins("http:/localhost:4200");`
+    - [application.properties](02-back_end/spring-boot-ecommerce/src/main/resources/application.properties)
+        move configuration for 'allowed origins' to application.properties `allowed.origins =http://localhost:4200`
+    - access the allowed origins in [MyDataRestConfig.java]
+    ```java
+        @Value("${allowed.origins}")
+        private String[] theAllowedOringins;
+            @Override
+        public void configureRepositoryRestConfiguration(RepositoryRestConfiguration config, CorsRegistry cors) {
+            //configure cors mapping
+            cors.addMapping("/api/**").allowedOrigins(theAllowedOringins);
+    ```
+    - Use existing property in [application.properties] `spring.data.rest.base-path' which is also available in the config object
+    `cors.addMapping(config.getBasePath()+"/**").allowedOrigins(theAllowedOringins)`
+    - Now we can remove @CrossOrigin from JpaRepositories
+      remove all : @CrossOrigin("http://localhost:4200")
+3. Configure CORS mapping for @RestController (RestController and RestData use different configuration)
+    remove `@CrossOrigin("http://localhost:4200")`from RestControllor[CheckoutController.java](02-back_end/spring-boot-ecommerce/src/main/java/com/hahagroup/ecommerce/controller/CheckoutController.java)
+    adding [MyAppConfig.java](02-back_end/spring-boot-ecommerce/src/main/java/com/hahagroup/ecommerce/config/MyAppConfig.java)
+    ```java
+          @Configuration
+      public class MyAppConfig implements WebMvcConfigurer {
+          @Value("${spring.data.rest.base-path}")
+          private String basePath;
+
+          @Value("${allowed.origins}")
+          private String[] theAllowedOrigins;
+
+          @Override
+          public void addCorsMappings(CorsRegistry cors){
+              //set up configure cors mapping
+              cors.addMapping(basePath+"/**").allowedOrigins(theAllowedOrigins);
+          }
+      }
+      ```
+4. Disable HTTP PATCH method
+    also need to disable HTTP PATCH method
+    ` HttpMethod[] theUnsupportedActions ={HttpMethod.PUT,HttpMethod.POST,HttpMethod.DELETE, HttpMethod.PATCH};`
+5. Modify Spring Data REST Detection Strategy
+   - By default, Spring Data REST will expose REST APIs for Spring Data Repository, but we may not want to expose all
+     - REST endpoint/api/customers is currently exposed, But we only want to use customer to check email internally
+   - Spring Data REST has different detection strategies
+     - ALL: EXPSOES ALL Spring Data repositories regardless of their java visiblilty or annotation configuration
+     - DEFAULT: Exposes Public Spirng Data Respository or Ones explicitly annotated with @RepositoryRestResource and its exported attribute not set to false
+     - VISIBILITY: Exposes only public Spring Data Respository regardless of annotation configuration
+     - ANNOTATED: Only exposes Spring Data Respository explicitly annotated with @RepositoryRestResource and its exported attribute not set to false
+   - we use  ANNOTATED here [application.properties] `spring.data.rest.detection-strategy= ANNOTATED`
+
+
+
 ### Order History
