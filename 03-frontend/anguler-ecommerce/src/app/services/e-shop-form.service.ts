@@ -5,14 +5,15 @@ import { Country } from '../common/country';
 import { State } from '../common/state';
 import { HttpClient } from '@angular/common/http';
 import { map } from 'rxjs/operators';
+import { environment } from '../../environments/environment';
 @Injectable({
   providedIn: 'root'
 })
 export class EShopFormService {
   // countries: Country[];
   // states: State[];
-  private stateUrl="http://localhost:8080/api/states";
-  private countryUrl="http://localhost:8080/api/countries";
+  private stateUrl=environment.hahashopUrl+"/states";
+  private countryUrl=environment.hahashopUrl+"/countries";
   constructor(private httpClient: HttpClient) { }
   //return an observable array of numbers
   getCreditCardMonths(startMonth: number):Observable<number[]>{

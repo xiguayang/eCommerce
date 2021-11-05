@@ -698,3 +698,157 @@
           //disable CSRF since we are not using Cookies for session tracking
         http.csrf().disable();
   ```
+
+
+
+### Secure Communication
+- we need add encrypted communication between Web Browser and Angular, Angular and Spring Boot
+- What is HTTPS:
+  - Hytertext Transefer Protocol Secure
+    - Https is the protocol for encrypting data between web browser and server
+    - uses TLS protocol(Trasnport Layer Security)
+      - TSL: successor of SSL, more secure than SSL
+        -  in the dustry, still use these terms interchangeably, TSL/SSL
+ - Using HTTPS
+   -  no changes required to teh source code
+   -  configure your server to run using secure keys and certificates
+      -  Provides proof of your server's identity(domain)
+      -  reviewd and signed by a trusted certifcate authority(godaddy,verisign, etc)
+         -  we will create self-signed certificates for dev/demo purposes
+         -  self-signed certificate will get web browser warning
+   -  then access with https://localhost:4200
+  
+#### Development Process - Angular
+  1. Generate key and self-signed certificate
+    - Use the free unitily: openssl
+    - https://github.com/darbyluv2code/fullstack-angular-and-springboot/blob/master/bonus-content/secure-https-communication/openssl-setup.md#mac-or-linux
+    - `$openssl req -keyout localhost.key -out localhost.crt ...`
+      - mkdir ssl-localhost
+      - create a localhost.conf file(adding given content)
+      - openssl req -x509 -out ssl-localhost/localhost.crt  -keyout ssl-localhost/localhost.key -newkey rsa:2048 -nodes -sha256 -days 365 config localhost.conf
+      - the command generated files in ssl-localhost directory: localhost.crt, localhost.key
+      - view the contents of certificate: openssl x509 -noout -text -in ssl-localhost/localhost.crt
+
+
+  2. Run Angular App with the key ans self-signed certificate
+     1. key and certificate generated last step
+     2. in [package.json](package.json)
+        ```json 
+        "scripts": {
+            "ng": "ng",
+            "start": "ng serve --ssl=true --sslKey=./ssl-localhost/localhost.key --sslCert=./ssl-localhost/localhost.crt",
+        ```
+    new command for starting the Angular app: npm start
+  3. Update Spirng Boot app with new URL
+      [application.properties](01-starter-files/spring-boot-properties/application.properties)
+      `allowed.origins =https://localhost:4200`
+
+  4. Update Okta
+   - Since Angular app is runnign on a different protocol, we needs to update Okta configs for Redirect URIs
+   - Process
+    1. update Redirect URI in Angular app[my-app-config.ts](03-frontend/anguler-ecommerce/src/app/config/my-app-config.ts)
+    `        redirectUri: 'https://localhost:4200/login/callback',`
+    2. update Redirect URIs in Okta Dashboard(applications)
+    3. Update API/trusted Origins in Okta Dashboard
+
+#### Development Process - Spring Boot
+1. Generate key and self-signed certifcate
+   1. Java provides support for keys and certifcates
+      1. A keystore is a file that contains keys and certificates
+         1. The entries are associated with an alias and password
+            alias1 ---<key, cert>
+   2. Use the JDK utility: keytool(included with JDK)
+   3. https://github.com/darbyluv2code/fullstack-angular-and-springboot/blob/master/bonus-content/secure-https-communication/keytool-steps.md
+      1. `cd spring-boot-ecommerce`
+      2. `keytool -genkeypair -alias hahashop -keystore src/main/resources/hahashop-keystore.p12 -keypass secret -storeType PKCS12 -storepass secret -keyalg RSA -keysize 2048 -validity 365 -dname "C=US, ST=Pennsylvania, L=Philadelphia, O=hahashop, OU=Training Backend, CN=localhost" -ext "SAN=dns:localhost"`
+      3. to verify `keytool -list -v -alias hahashop -keystore src/main/resources/hahashop-keystore.p12 -storepass secret`
+
+2. Update [application.properties] with security config
+```
+      #####
+      #
+      # HTTPS configuration
+      #
+      #####
+
+      #Server web port
+      server.port = 8443
+      #Enable HTTPS support(only accept HTTPS requests)
+      server.ssl.enabled=true
+      # based on keytool command
+      #Alias that identified the key in the key store
+      server.ssl.key-alias= hahashop
+      #Keystore location, for maven projects files in src/main/resources are automatically added to the classpath
+      server.ssl.key-store=classpath:hahashop-keystore.p12
+      #keyStore password
+      server.ssl.key-store-password=secret
+      #KeyStore format
+      server.ssl.key-store-type=PKCS12
+```
+3. https://localhost:8443/api/products
+
+#### Angular environment Configuration
+- now Angular app currently has Spring Boot URL hard coded, the url has changed from http:8080 to https:8443
+- instead of hard-coding URL in service class, place in a configuration
+  - allow app to easily run if deployed to different environment/server
+- Environments:
+  - DEV: https://localhost:8443
+  - QA: https://qa.myapp.mycompany.com:9898
+  - PROD: https://myapp.company.com:443
+- Angular has support for environments
+  - an environment is a named configuration for your app
+    - src/environments
+      - environment.ts      Default env
+      - environment.prod.ts   Prod env
+  - add configurations for various environments
+##### Development Process
+  1. define configs in environment file [src/environments]
+  2. use environment in your app
+      [environment.ts](03-frontend/anguler-ecommerce/src/environments/environment.ts)
+      ```ts
+      export const environment = {
+        production: false,
+        hahashopUrl: "https://localhost:8443/api"
+      };
+      ```
+      in service files, using 'environment.hahashopUrl' instead of hardcoded
+  3. run with environment configuration
+     1. run with default: `npm start`
+     2. run with production configuration
+        `npm start -- --configuration=production`
+
+ ##### add custom environments and give any environment name
+    - environment.qa.ts, environment.betatest.ts....
+    1. Create environment file: environment.qa.ts
+        [environment.qa.ts](03-frontend/anguler-ecommerce/src/environments/environment.qa.ts)
+        ```ts
+        export const environment = {
+            production: false,
+            //add custom environment configs
+            //URL for Spring Boot running in QA
+            hahashopUrl: "https://localhost:9898/api"
+          };
+        ```
+    2. Define configiration in angular.json for 'build' section
+        path in angular.json file: projects> angular-ecommerce > architect > build > configurations
+        ```json
+          "configurations": {
+            "qa":{
+              "fileReplacements": [
+                {
+                  "replace": "src/environments/environment.ts",
+                  "with": "src/environments/environment.qa.ts"
+                }
+              ]
+            },
+        ```
+    3. Define configuration in angular.json for 'serve' section --reference to the 'build'section
+        path in angular.json file: projects> angular-ecommerce > architect > serve > configurations
+        ```json
+        "configurations": {
+            "qa":{
+              "browserTarget": "angualr-ecommerce:build:qa"
+            },
+        ```
+    4. run with environment configuration
+      `npm start -- --configuration=qa`

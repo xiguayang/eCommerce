@@ -4,12 +4,13 @@ import { Observable } from 'rxjs';
 import { Product } from '../common/product';
 import { map } from 'rxjs/operators';
 import { ProductCategory } from '../common/product-category';
+import { environment } from '../../environments/environment';
 @Injectable({
   providedIn: 'root'
 })
 export class ProductService {
-  private baseUrl="http://localhost:8080/api/products";
-  private categoryUrl="http://localhost:8080/api/product-category";
+  private baseUrl=environment.hahashopUrl+"/products";
+  private categoryUrl=environment.hahashopUrl+"/product-category";
  
   //inject HttpClient
   constructor(private httpClient: HttpClient) { }
