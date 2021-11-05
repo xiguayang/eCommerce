@@ -394,3 +394,245 @@
 
 
 ### Order History
+#### function overview
+1. Allow users to view their previous history
+2. Only allowed user logged in/authenticated
+
+#### Development Process - Spring Boot
+1. Create OrderRepository REST API
+   1. Expose endpoint to search for orders by the customer's email address
+    GET /api/orders/search/findByCustomerEmail?email=xxxxx
+    Entity Classes relationship: Order --> customer-->has email
+    ```java
+    @RepositoryRestResource
+    public interface OrderRepository extends JpaRepository<Order, Long> {
+        Page<Order> findByCustomerEmail(@Param("email")String email, Pageable pageable);
+    }
+    ```
+    Behind the scenes:
+    ```SQL
+    SELECT * FROM orders
+    LEFT OUTER JOIN customer
+    ON orders.customer_id = customer.id
+    WHERE customer.email =: email
+    ```
+2. Update configs to make OrderRepository REST API read only[MyDataRestConfig.java](02-back_end/spring-boot-ecommerce/src/main/java/com/hahagroup/ecommerce/config/MyDataRestConfig.java)
+`   disableHttpMethods(Order.class, config, theUnsupportedActions);`
+3. test on Postman:http://localhost:8080/api/orders/search/findByCustomerEmail?email=happylay@test.com
+
+#### Development Process - Angular
+1. Keep track of logged in user's email with web browser storage
+   1. Use Browser session storage [LoginStatus.component.ts](03-frontend/anguler-ecommerce/src/app/components/login-status/login-status.component.ts)
+    ```ts
+      //reference to web browser's session storage(web tag)
+      storage: Storage = sessionStorage;
+      ...
+      getUserDetails(){
+        if(this.isAuthenticated){
+          //Fetch the logged in user details(user's claims)
+          // user full name is exposed as a proterty name
+          this.oktaAuthService.getUser().then(res=>{
+            this.userFullName=res.name;
+            //retrieve the user's email from authentication response
+            const theEmail = res.email;
+            //now store the email in browser storage
+            //key and value
+            this.storage.setItem('userEmail', JSON.stringify(theEmail));
+          })
+    ```
+2. Create OrderHistory class ==> Order Entity
+    [OrderHistory.ts](03-frontend/anguler-ecommerce/src/app/common/order-history.ts)
+    ```ts
+    export class OrderHistory {
+        id: string;
+        orderTrackingNumber: string;
+        totalPrice: number;
+        totalQuantity: number;
+        dateCreated: Date;
+    }
+    ```
+3. Develop OrderHistory service
+  `ng generate service services/OrderHistory`[order-history.service.ts](03-frontend/anguler-ecommerce/src/app/services/order-history.service.ts)
+  ```ts
+   @Injectable({
+      providedIn: 'root'
+    })
+    export class OrderHistoryService {
+      private orderUrl = 'http://localhost:8080/api/orders';
+      constructor(private httpClient:HttpClient) { }
+
+      getOrderHistory(theEmail: string): Observable<GetResponseOrderHistory>{
+        //need to build URL based on customer history
+        const orderHistoryUrl = `${this.orderUrl}/search/findByCustomerEmail?email=${theEmail}`
+
+        return this.httpClient.get<GetResponseOrderHistory>(orderHistoryUrl);
+      }
+    }
+    interface GetResponseOrderHistory{
+      _embedded:{
+        orders: OrderHistory[];
+      }
+    }
+  ```
+4. Generate order-history component
+  `ng generate component components/OrderHistory`[order-history.component.ts](03-frontend/anguler-ecommerce/src/app/components/order-history/order-history.component.ts)
+  ```ts
+   export class OrderHistoryComponent implements OnInit {
+    orderHistoryList: OrderHistory[]=[];
+    storage: Storage= sessionStorage;
+    //inject OrderHistoryService
+    constructor(private orderHistoryService:OrderHistoryService) { }
+
+    ngOnInit(): void {
+      this.handleOrderHistory();
+    }
+
+    handleOrderHistory(){
+      //read the user's email from session storage
+      const theEmail = JSON.parse(this.storage.getItem("userEmail"))
+      
+      //retrieve data from service
+      this.orderHistoryService.getOrderHistory(theEmail).subscribe(
+        data=>{this.orderHistoryList=data._embedded.orders}
+      )
+    }
+   }
+  ```
+5. Update template text in HTML page
+```html
+  <h3>Your Orders</h3>
+  <div *ngIf="orderHistoryList.length > 0">
+    <table class="table table-bordered">
+      <tr>
+        <th width="20%">Order Tracking Number</th>
+        <th width="10%">Total Price</th>
+        <th width="10%">Total Quantity</th>
+        <th width="10%">Date</th>
+      </tr>
+      <tr *ngFor="let tempOrderHistory of orderHistoryList">
+        <td>{{ tempOrderHistory.orderTrackingNumber }}</td>
+        <td>{{ tempOrderHistory.totalPrice | currency: "USD" }}</td>
+        <td>{{ tempOrderHistory.totalQuantity }}</td>
+        <td>{{ tempOrderHistory.dateCreated | date: "medium" }}</td> 
+        <!-- other date format: short long full... -->
+      </tr>
+    </table>
+  </div>
+```
+6. Add 'Orders' button to login-status component[login-status.component.html](03-frontend/anguler-ecommerce/src/app/components/login-status/login-status.component.html)
+```html
+  <button
+    *ngIf="isAuthenticated"
+    routerLink="/order-history"
+    class="security-btn ml-2"
+  >
+    Orders
+  </button>
+```
+7. Define protected route for order-history component [app.module.ts](03-frontend/anguler-ecommerce/src/app/app.module.ts)
+  `{path: 'order-history', component: OrderHistoryComponent, canActivate:[OktaAuthGuard]} `
+8. Sort the orders by date(descending order, most recent date first)
+   1. backend
+    `Page<Order> findByCustomerEmailOrderByDateCreatedDesc(@Param("email")String email, Pageable pageable);`
+   2. frontend[order-history.service.ts]
+    ` const orderHistoryUrl = `${this.orderUrl}/search/findByCustomerEmailOrderByDateCreatedDesc?email=${theEmail}``
+9. pre-populate user's email address from storage session when check out
+  [checkout.component.ts]
+  ```ts
+  storage:Storage=sessionStorage;
+  ...
+    //read the user's email from storage session
+    const theEmail = JSON.parse(this.storage.getItem('userEmail'));
+    this.checkoutFormGroup = this.formBuilder.group({
+      customer: this.formBuilder.group({
+  ...
+        email: new FormControl(theEmail, [Validators.required, Validators.pattern('^[a-z0-9._%+-]+@[a-z0-9.-]+\\.[a-z]{2,4}$'), EshopValidators.notOnlyWhitespace])
+      }),
+  ```
+
+#### View Order History (Unsecured REST API for /api/orders)
+##### need secure order history backend
+  - /api/orders should only avalibale to logged in users
+- Development Process - Spring Boot
+  1. Add Okta Spring Boot Starter to Maven pom.xml(dependency)
+     1. Okta provides a Spring Boot Starter for OAuth 2/ OpenID Connect
+     2. Simplifies integration and configuration of Spring Security and Okta
+    [pom.xml](02-back_end/spring-boot-ecommerce/pom.xml)
+    https://github.com/okta/okta-spring-boot
+      ```java
+      	<dependencies>
+            <dependency>
+              <groupId>com.okta.spring</groupId>
+              <artifactId>okta-spring-boot-starter</artifactId>
+              <version>2.0.1</version>
+            </dependency>
+      ```
+      maven-reload project
+  2. Create an App at the Okta Developer website
+      create app integration==>OIDC==>web application
+      login redirect URIs: http://localhost:8080/login/oauth2/code/okta
+      this URI is automatically exposed on our Spring Boot APP.This is provided by the Okta Spring Boot Starter we added the dependency in our pom.xml
+      clientId: 
+      Client Secret: 
+      okta domain:
+  3. In Spring Boot app, set application properties
+      Spring Boot application use these properties to verify/validate JWT access tokens
+      [application.properties](01-starter-files/spring-boot-properties/application.properties)
+      ```java
+      okta.oauth2.client-id={yourClientId}
+      okta.oauth2.client-secret ={yourClientSecret}
+      okta.oauth2.issuer=https://{yourClientDomain}/oauth2/default
+      ```
+      - OAuth2: 
+        - Resource Owner(end user)
+        - Resource Server(Protected Resource):
+          - the app that hosting our protected resources
+            - in this case is our Spring Boot app
+          - manages security using access tokens(JWT)
+          - the access tokens are validated with the 'Authorization Server' Okta
+        - Client App(Anguler)
+          - Sends the access token as HTTP request header to Resource Server(Spring Boot)
+            - Request header: Authorization: Bearer<token>
+            - Request body
+        - Auhorization Server(Okta)
+      - Process:
+      Resource Owner --login w/Resource Owner's credentials-->Client App
+      Client App ----Send Credentails ---> Authorization Server
+                <--- Provide Auth Token --
+                ---Request Access token--->
+                <-- Provides Access token--
+                ----------------------------Send Access token -----------------------> Resource Server
+                                      Authorization Server <---Verify/Validate token--
+                <------------------Provides access to protected resource--------------
+
+
+  4. Protect endpoints in Spring Security configuration class
+      [SecurityConfiguration.java](02-back_end/spring-boot-ecommerce/src/main/java/com/hahagroup/ecommerce/config/SecurityConfiguration.java)
+      - specify: protect the endpoint: only accessible to authenticated users
+        **: apply to  this path and all sub-paths recursively
+      - Configures OAuth2 Resource Server support
+      - Enables JWT-endcoded bearer token support
+        - JSON Web Token(JWT)'jot'
+      ```java
+      @Configuration
+      public class SecurityConfiguration extends WebSecurityConfigurerAdapter {
+          @Override
+          protected void configure(HttpSecurity http) throws Exception {
+              //protect endpoint: /api/orders
+              //only accessible to authenticated users
+              http.authorizeRequests()
+                      //apply to  this path and all sub-paths recursively
+                      .antMatchers("/api/orders/**")
+                      .authenticated()
+                      .and()
+                      //Configures OAuth2 Resource Server supports
+                      .oauth2ResourceServer()
+                      // Enables JWT-endcoded bearer token support
+                      .jwt();
+              //add CORS filters
+              http.cors();
+          }
+      }
+      ```
+
+##### need to update Angular app to pass the access token with the HTTP resquest

@@ -13,7 +13,7 @@ export class CartService {
   totalQuantity:  Subject<number> = new BehaviorSubject<number>(0);
   //reference to web browser's session storage
   //storage: Storage = sessionStorage;
-  storage: Storage=localStorage;//data is persisted and survives brwoser restarts
+  storage: Storage=localStorage;//data is persisted and survives browser restarts
 
   constructor() { 
     //read data from storage

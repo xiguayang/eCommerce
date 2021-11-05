@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, enableProdMode } from '@angular/core';
 import {  OktaAuthService } from '@okta/okta-angular';
 
 @Component({
@@ -10,6 +10,8 @@ export class LoginStatusComponent implements OnInit {
 
   isAuthenticated: boolean = false;
   userFullName: String;
+  //reference to web browser's session storage(web tag)
+  storage: Storage = sessionStorage;
 
   constructor(private oktaAuthService: OktaAuthService) { }
 
@@ -26,7 +28,14 @@ export class LoginStatusComponent implements OnInit {
       // user full name is exposed as a proterty name
       this.oktaAuthService.getUser().then(res=>{
         this.userFullName=res.name;
+
+        //retrieve the user's email from authentication response
+        const theEmail = res.email;
+
+        //now store the email in browser storage
+        this.storage.setItem('userEmail', JSON.stringify(theEmail));
       })
+
     }
   }
 
