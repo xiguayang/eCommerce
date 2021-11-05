@@ -3,7 +3,7 @@
   - [x] Provide access to special VIP page 
   - [x] Handle Page Refresh
   - [x] Handle Customer by email(refactor)
-  - [] Keep track of order history for registered customers
+  - [x] Keep track of order history for registered customers
 
 ### Terms:
 - Authentication: The process of validating whether a user/app is who they claim to be
@@ -636,3 +636,65 @@
       ```
 
 ##### need to update Angular app to pass the access token with the HTTP resquest
+- Client(Angular) sends the access token as an HTTP request header to Rsource Server(backend Spring Boot)
+- Angular Interceptors
+  - An interceptor can initercept HTTP requests/responses
+  - useful to perform processing on the HTTP  requests/responses
+    - My Angular Code <--HTTPClient ------Interceptor(0..MANY)------>REST API
+  - will use an interceptor to pass  to access token in HTTP request
+    - the interceptor will basically take the request and we'll use that to add the access token
+- Development Process
+1. Create an interceptor
+   1. Develop the iinterceptor as a service [auth-interceptor.service.ts](03-frontend/anguler-ecommerce/src/app/services/auth-interceptor.service.ts)
+  ` ng generate service services/AuthInterceptor` 
+  ```ts
+  export class AuthInterceptorService implements HttpInterceptor {
+    //HttpInterceptor is an interface provided by angular
+    //inject Okta services in constructor
+      constructor(private oktaAuth: OktaAuthService) { }
+
+      //will intercept all outgoing HTTP requests of HttpClient
+      intercept(request: HttpRequest<any>, next:HttpHandler):Observable<HttpEvent<any>>{
+        return from(this.handleAccess(request,next))
+      }
+      //returns a promise
+      private async handleAccess(request: HttpRequest<any>, next: HttpHandler): Promise<HttpEvent<any>> {
+        //only add an access token for secured endpoints
+        const securedEndpoints=['http://localhost:8080/api/orders'];
+        if(securedEndpoints.some(url=>request.urlWithParams.includes(url))){
+          //get access token
+          const accessToken = await this.oktaAuth.getAccessToken();
+          //getAccessToken is an Async call, adding await to wait the call to finish
+
+          //request is immutable, must clone
+          //clone the request and add new header with access token
+          request= request.clone({
+            setHeaders:{
+                 //attention: must have a space after 'Bearer '
+              Authorization: 'Bearer '+accessToken
+            }
+          })
+        }
+        //Pass the request to the next interceptor in the chain
+        return next.handle(request).toPromise();
+      }
+    }
+```
+2. Update [app.module.ts](03-frontend/anguler-ecommerce/src/app/app.module.ts) to reference interceptor:
+  token for HTTP interceptors,
+  register our AuthInterceptorService as an HTTP interceptor
+  informs Angular that HTTP_INTERCEPTORS is a token for injecting an array of values
+  ```ts
+    providers: [ProductService, {provide: OKTA_CONFIG, useValue: oktaConfig},
+              {provide:HTTP_INTERCEPTORS, useClass: AuthInterceptorService, multi:true}],
+  ```
+3. Checkout bugs: 403 failed
+  Reason: Fails because we are sending checkout request with HTTP POST
+          By default, CSRF is enabled CSRF performs checks on POST using Cookies
+          Since we are not using cookies for session tracking, CSRF says request is unauthorized
+  Solution: disabling CSRF(this technique is commonly used for REST APIs)
+  [SecurityConfiguration](02-back_end/spring-boot-ecommerce/src/main/java/com/hahagroup/ecommerce/config/SecurityConfiguration.java)
+  ```java
+          //disable CSRF since we are not using Cookies for session tracking
+        http.csrf().disable();
+  ```
